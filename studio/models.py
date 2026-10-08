@@ -205,6 +205,31 @@ class OrderDelivery(models.Model):
         return self.title or self.filename
 
 
+class OrderEvent(models.Model):
+    """Журнал заказа: что и когда происходило. Показывается клиенту и менеджеру."""
+
+    class Kind(models.TextChoices):
+        CREATED = "created", "Заказ создан"
+        STATUS = "status", "Смена статуса"
+        MESSAGE = "message", "Сообщение"
+        DELIVERY = "delivery", "Результат"
+        REVISION = "revision", "Запрос правок"
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="events")
+    kind = models.CharField("Тип", max_length=10, choices=Kind.choices)
+    text = models.CharField("Описание", max_length=255)
+    to_status = models.CharField("Новый статус", max_length=20, blank=True)
+    created_at = models.DateTimeField("Время", auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "pk"]
+        verbose_name = "событие"
+        verbose_name_plural = "история заказа"
+
+    def __str__(self):
+        return f"{self.created_at:%d.%m %H:%M} {self.text}"
+
+
 class OrderMessage(models.Model):
     class Sender(models.TextChoices):
         CLIENT = "client", "Клиент"

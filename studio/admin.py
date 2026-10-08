@@ -6,6 +6,7 @@ from .models import (
     Notification,
     Order,
     OrderDelivery,
+    OrderEvent,
     OrderMessage,
     PortfolioItem,
     Profile,
@@ -69,6 +70,21 @@ class OrderDeliveryInline(admin.TabularInline):
         )
 
 
+class OrderEventInline(admin.TabularInline):
+    model = OrderEvent
+    extra = 0
+    fields = ("created_at", "text")
+    readonly_fields = ("created_at", "text")
+    can_delete = False
+    verbose_name_plural = "история заказа"
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "service", "status", "source", "contact", "created_at")
@@ -86,7 +102,7 @@ class OrderAdmin(admin.ModelAdmin):
         "reference_link",
     )
     exclude = ("reference_file",)
-    inlines = [OrderDeliveryInline, OrderMessageInline]
+    inlines = [OrderDeliveryInline, OrderMessageInline, OrderEventInline]
     actions = ["mark_in_progress", "mark_done"]
 
     @admin.display(description="Контакты")

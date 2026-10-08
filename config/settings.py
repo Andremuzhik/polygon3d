@@ -165,6 +165,8 @@ EMAIL_BACKEND = (
     else "django.core.mail.backends.console.EmailBackend"
 )
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "Polygon3D <noreply@example.com>")
+# Письма клиентам о заказе (заявка принята, статус, ответ менеджера, результат); можно выключить
+EMAIL_NOTIFICATIONS = env_bool("EMAIL_NOTIFICATIONS", True)
 
 # --- Студия и Telegram ---
 SITE_URL = os.environ.get("SITE_URL", "http://localhost:8000").rstrip("/")

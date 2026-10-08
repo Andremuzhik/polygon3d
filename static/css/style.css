@@ -189,3 +189,10 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .files li { display: grid; gap: .1rem; padding: .7rem 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; }
 .review { margin: 1.5rem 0; border-color: var(--accent-fill); }
 .review h3 { margin-top: 0; }
+.timeline { list-style: none; margin: 0; padding: 0 0 0 1rem; border-left: 2px solid var(--border); display: grid; gap: .9rem; }
+.timeline__item { position: relative; font-size: .92rem; }
+.timeline__item::before { content: ""; position: absolute; left: calc(-1rem - 6px); top: .35rem; width: 10px; height: 10px; border-radius: 50%; background: var(--border); border: 2px solid var(--surface); }
+.timeline__item--status::before { background: var(--accent); }
+.timeline__item--delivery::before { background: var(--ok); }
+.timeline__item--revision::before { background: var(--warn); }
+.timeline__time { display: block; color: var(--muted); font-size: .8rem; }

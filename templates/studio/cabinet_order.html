@@ -54,7 +54,13 @@
     </div>
     <aside class="panel">
       <h4>Детали</h4>
-      <p class="muted">Бюджет: {{ order.budget|default:"—" }}<br>Срок: {{ order.deadline|date:"d.m.Y"|default:"—" }}</p>
+      <p class="muted">Бюджет: {{ order.budget|default:"—" }}<br>Срок: {{ order.deadline|date:"d.m.Y"|default:"—" }}<br>Правок запрошено: {{ order.revisions_used }} из {{ revisions_included }} включённых</p>
+      <h4>История заказа</h4>
+      <ol class="timeline">
+        {% for e in events %}
+          <li class="timeline__item timeline__item--{{ e.kind }}"><span class="timeline__time">{{ e.created_at|date:"d.m H:i" }}</span>{{ e.text }}</li>
+        {% empty %}<li class="muted">Событий пока нет.</li>{% endfor %}
+      </ol>
     </aside>
   </div>
 </section>

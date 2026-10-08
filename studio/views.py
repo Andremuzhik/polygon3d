@@ -183,6 +183,7 @@ def cabinet_order(request, pk):
             "chat": order.messages.all(),
             "form": form,
             "deliveries": order.deliveries.all(),
+            "events": order.events.all(),
             "can_review": order.status == Order.Status.REVIEW,
             "revision_form": RevisionForm(),
             "revisions_included": REVISIONS_INCLUDED,

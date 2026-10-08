@@ -2,8 +2,8 @@
 
 from django.db import transaction
 
-from . import notifications
-from .models import REVISIONS_INCLUDED, Order, OrderMessage
+from . import events, notifications
+from .models import REVISIONS_INCLUDED, Order, OrderEvent, OrderMessage
 
 
 def accept_order(order: Order) -> bool:
@@ -33,9 +33,12 @@ def request_revision(order: Order, text: str) -> int | None:
             if number > REVISIONS_INCLUDED
             else f"правка {number} из {REVISIONS_INCLUDED}"
         )
-        OrderMessage.objects.create(
+        events.log(order, OrderEvent.Kind.REVISION, f"Клиент запросил правки ({note})")
+        message = OrderMessage(
             order=order,
             sender=OrderMessage.Sender.CLIENT,
             text=f"✏️ Запрос правок ({note}):\n{text.strip()}",
         )
+        message._skip_event = True  # событие уже записано строкой выше
+        message.save()
     return number

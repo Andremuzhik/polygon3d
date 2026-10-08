@@ -894,3 +894,175 @@ class DeliveryTests(TestCase):
         ]:
             with self.subTest(name), self.assertRaises(ValidationError):
                 check(name, content)
+
+
+class OrderEventTests(TestCase):
+    def setUp(self):
+        self._media = tempfile.TemporaryDirectory()
+        self.addCleanup(self._media.cleanup)
+        override = override_settings(MEDIA_ROOT=self._media.name, TELEGRAM_BOT_TOKEN="")
+        override.enable()
+        self.addCleanup(override.disable)
+        self.user = User.objects.create_user("alice", "alice@example.com", "pass-12345-x")
+        self.order = Order.objects.create(user=self.user, name="Alice", description="x")
+
+    def events(self):
+        return list(self.order.events.values_list("kind", "text"))
+
+    def test_creation_is_logged(self):
+        self.assertEqual(self.events(), [("created", "Заказ создан (Сайт)")])
+
+    def test_status_change_is_logged_with_labels_and_target_status(self):
+        self.order.status = Order.Status.IN_PROGRESS
+        self.order.save()
+        event = self.order.events.get(kind="status")
+        self.assertEqual(event.text, "Статус: Новый → В работе")
+        self.assertEqual(event.to_status, "in_progress")
+
+    def test_saving_without_status_change_logs_nothing(self):
+        self.order.manager_note = "заметка"
+        self.order.save()
+        self.assertEqual(len(self.events()), 1)
+
+    def test_messages_are_logged_by_sender(self):
+        OrderMessage.objects.create(order=self.order, sender="client", text="вопрос")
+        OrderMessage.objects.create(order=self.order, sender="manager", text="ответ")
+        texts = [t for k, t in self.events() if k == "message"]
+        self.assertEqual(texts, ["Сообщение от клиента", "Сообщение от менеджера"])
+        self.assertNotIn(
+            "вопрос", "".join(t for _, t in self.events())
+        )  # текст переписки в журнал не копируется
+
+    def test_delivery_logs_result_and_status_move(self):
+        from .models import OrderDelivery
+
+        self.order.status = Order.Status.IN_PROGRESS
+        self.order.save()
+        OrderDelivery.objects.create(
+            order=self.order, title="Рендеры v1", file=SimpleUploadedFile("r.png", PNG_BYTES)
+        )
+        events = self.events()
+        self.assertIn(("delivery", "Загружен результат: Рендеры v1"), events)
+        self.assertIn(("status", "Статус: В работе → На согласовании"), events)
+
+    def test_second_delivery_does_not_repeat_status_event(self):
+        from .models import OrderDelivery
+
+        for name in ("a.png", "b.png"):
+            OrderDelivery.objects.create(order=self.order, file=SimpleUploadedFile(name, PNG_BYTES))
+        self.assertEqual(self.order.events.filter(kind="status").count(), 1)
+        self.assertEqual(self.order.events.filter(kind="delivery").count(), 2)
+
+    def test_revision_is_one_event_without_duplicate_message_event(self):
+        from . import services
+
+        Order.objects.filter(pk=self.order.pk).update(status=Order.Status.REVIEW)
+        services.request_revision(self.order, "Сделайте ярче")
+        kinds = [k for k, _ in self.events()]
+        self.assertEqual(kinds.count("revision"), 1)
+        self.assertEqual(kinds.count("message"), 0)
+        self.assertIn(("revision", "Клиент запросил правки (правка 1 из 2)"), self.events())
+
+    def test_acceptance_is_logged_as_status_change(self):
+        from . import services
+
+        Order.objects.filter(pk=self.order.pk).update(status=Order.Status.REVIEW)
+        services.accept_order(self.order)
+        self.assertIn(("status", "Статус: На согласовании → Выполнен"), self.events())
+
+    def test_cabinet_and_admin_show_the_history(self):
+        self.order.status = Order.Status.IN_PROGRESS
+        self.order.save()
+        self.client.force_login(self.user)
+        page = self.client.get(reverse("cabinet-order", args=[self.order.pk]))
+        self.assertContains(page, "История заказа")
+        self.assertContains(page, "Статус: Новый → В работе")
+
+        staff = User.objects.create_superuser("boss", "b@b.ru", "pass-12345-x")
+        self.client.force_login(staff)
+        admin_page = self.client.get(f"/admin/studio/order/{self.order.pk}/change/")
+        self.assertContains(admin_page, "Статус: Новый → В работе")
+
+
+class EmailNotificationTests(TestCase):
+    def setUp(self):
+        override = override_settings(
+            TELEGRAM_BOT_TOKEN="", SITE_URL="https://site.test", SITE_NAME="Polygon3D"
+        )
+        override.enable()
+        self.addCleanup(override.disable)
+        self.user = User.objects.create_user("alice", "alice@example.com", "pass-12345-x")
+        self.order = Order.objects.create(
+            user=self.user, name="Алиса", email="alice@example.com", description="x"
+        )
+        mail.outbox.clear()
+
+    def test_confirmation_for_a_new_order(self):
+        Order.objects.create(name="Гость", email="guest@example.com", description="x")
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["guest@example.com"])
+        self.assertIn("заявка №", message.subject)
+        self.assertIn("Здравствуйте, Гость!", message.body)
+        self.assertNotIn("/cabinet/", message.body)  # у гостя нет кабинета
+
+    def test_cabinet_link_only_for_registered_clients(self):
+        Order.objects.filter(pk=self.order.pk).update(status=Order.Status.NEW)
+        self.order.status = Order.Status.IN_PROGRESS
+        self.order.save()
+        body = mail.outbox[0].body
+        self.assertIn(f"https://site.test/cabinet/orders/{self.order.pk}/", body)
+
+    def test_status_change_email(self):
+        self.order.status = Order.Status.IN_PROGRESS
+        self.order.save()
+        message = mail.outbox[0]
+        self.assertIn("«В работе»", message.subject)
+        self.assertIn("изменён на «В работе»", message.body)
+
+    def test_manager_message_is_emailed_but_client_message_is_not(self):
+        OrderMessage.objects.create(order=self.order, sender="client", text="мой вопрос")
+        self.assertEqual(mail.outbox, [])
+        OrderMessage.objects.create(
+            order=self.order, sender="manager", text="Ответ <менеджера> & ко"
+        )
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(
+            "Ответ <менеджера> & ко", mail.outbox[0].body
+        )  # обычный текст, без HTML-экранирования
+
+    def test_delivery_email(self):
+        from .models import OrderDelivery
+
+        with tempfile.TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            OrderDelivery.objects.create(
+                order=self.order, title="Рендеры v1", file=SimpleUploadedFile("r.png", PNG_BYTES)
+            )
+        subjects = [m.subject for m in mail.outbox]
+        self.assertTrue(any("готов результат" in s for s in subjects))
+        self.assertIn("Рендеры v1", mail.outbox[0].body)
+
+    def test_nothing_is_sent_without_an_address(self):
+        order = Order.objects.create(name="Из бота", description="x", telegram_id=7)
+        order.status = Order.Status.DONE
+        order.save()
+        self.assertEqual(mail.outbox, [])
+
+    @override_settings(EMAIL_NOTIFICATIONS=False)
+    def test_can_be_switched_off(self):
+        self.order.status = Order.Status.DONE
+        self.order.save()
+        Order.objects.create(name="Гость", email="g@example.com", description="x")
+        self.assertEqual(mail.outbox, [])
+
+    def test_mail_failure_does_not_break_saving(self):
+        from smtplib import SMTPException
+        from unittest import mock
+
+        with (
+            mock.patch("studio.notifications.send_mail", side_effect=SMTPException("down")),
+            self.assertLogs("studio.notifications", level="ERROR"),
+        ):
+            self.order.status = Order.Status.DONE
+            self.order.save()
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.DONE)
