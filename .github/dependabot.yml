@@ -1,0 +1,39 @@
+# Еженедельные PR с обновлениями. Python-зависимости собираются pip-compile (requirements.in →
+# requirements.txt с хешами), Dependabot умеет пересобирать такие файлы корректно.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    groups:
+      python-minor-patch:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: docker-compose
+    directories: ["/", "/deploy"]
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "deps"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "ci"

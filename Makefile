@@ -1,4 +1,4 @@
-.PHONY: up down logs build test smoke lint format migrations superuser seed shell
+.PHONY: up down logs build test smoke lock lint format migrations superuser seed shell
 
 up:
 	docker compose up --build -d
@@ -17,6 +17,11 @@ test:
 
 smoke:
 	sh scripts/smoke_test.sh
+
+lock:
+	docker run --rm -v "$(PWD)":/src -w /src python:3.13-slim sh -c "pip install -q pip-tools && \
+		pip-compile -q --generate-hashes --strip-extras --allow-unsafe -o requirements.txt requirements.in && \
+		pip-compile -q --generate-hashes --strip-extras --allow-unsafe -o requirements-dev.txt requirements-dev.in"
 
 lint:
 	docker run --rm -v "$(PWD)":/src -w /src ghcr.io/astral-sh/ruff check .
