@@ -11,7 +11,7 @@
       {% endfor %}
     </div>
     <div class="grid">
-      {% for w in page %}{% include "studio/_cards.html" with kind="work" item=w %}
+      {% for w in page %}{% include "studio/_cards.html" with kind="work" item=w level=2 %}
       {% empty %}<p class="muted">В этой категории пока нет работ.</p>{% endfor %}
     </div>
     {% if page.has_other_pages %}

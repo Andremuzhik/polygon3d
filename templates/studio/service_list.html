@@ -6,7 +6,7 @@
     <h1>Услуги</h1>
     <p class="lead">Цены ориентировочные — точную стоимость назовём после уточнения задачи.</p>
     <div class="grid">
-      {% for s in services %}{% include "studio/_cards.html" with kind="service" item=s %}
+      {% for s in services %}{% include "studio/_cards.html" with kind="service" item=s level=2 %}
       {% empty %}<p class="muted">Услуги скоро появятся.</p>{% endfor %}
     </div>
   </div>

@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d12">
   <title>{% block title %}{{ SITE_NAME }} — 3D-моделирование на заказ{% endblock %}</title>
   <meta name="description" content="{% block description %}Студия 3D-моделирования: персонажи, предметы, интерьеры, игровые ассеты и модели для 3D-печати.{% endblock %}">
   <link rel="icon" href="{% static 'favicon.svg' %}" type="image/svg+xml">
@@ -19,11 +20,12 @@
   {% block head %}{% endblock %}
 </head>
 <body>
+<a class="skip-link" href="#main">Перейти к содержимому</a>
 <header class="header">
   <div class="container header__inner">
     <a class="logo" href="{% url 'home' %}"><span class="logo__mark"></span>{{ SITE_NAME }}</a>
-    <button class="burger" aria-label="Меню" data-burger>☰</button>
-    <nav class="nav" data-nav>
+    <button class="burger" type="button" aria-label="Меню" aria-expanded="false" aria-controls="site-nav" data-burger>☰</button>
+    <nav class="nav" id="site-nav" aria-label="Основная навигация" data-nav>
       <a href="{% url 'services' %}">Услуги</a>
       <a href="{% url 'portfolio' %}">Портфолио</a>
       <a href="{% url 'reviews' %}">Отзывы</a>
@@ -46,7 +48,7 @@
 </div>
 {% endif %}
 
-<main>{% block content %}{% endblock %}</main>
+<main id="main">{% block content %}{% endblock %}</main>
 
 <footer class="footer">
   <div class="container footer__inner">

@@ -5,7 +5,7 @@
     {% if item.image %}<img src="{{ item.image.url }}" alt="{{ item.title }}" loading="lazy">{% else %}<div class="placeholder">◆</div>{% endif %}
   </div>
   <div class="card__body">
-    <h3>{{ item.title }}</h3>
+    <h{{ level|default:3 }}>{{ item.title }}</h{{ level|default:3 }}>
     <p class="muted">{{ item.short_description }}</p>
     <p class="price">{% if item.price_from %}от {{ item.price_from|floatformat:"0g" }} ₽{% else %}по договорённости{% endif %}</p>
   </div>
@@ -17,7 +17,7 @@
     {% if item.model_file %}<span class="badge">3D</span>{% endif %}
   </div>
   <div class="card__body">
-    <h3>{{ item.title }}</h3>
+    <h{{ level|default:3 }}>{{ item.title }}</h{{ level|default:3 }}>
     <p class="muted">{{ item.get_category_display }}</p>
   </div>
 </a>

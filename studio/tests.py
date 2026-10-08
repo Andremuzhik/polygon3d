@@ -574,3 +574,50 @@ class SecurityHeadersTests(TestCase):
             html = self.client.get(reverse("portfolio-detail", args=["viewer"])).content.decode()
         self.assertIn("/static/vendor/model-viewer/model-viewer.min.js", html)
         self.assertNotIn("unpkg.com", html)
+
+
+class ViewerAndAccessibilityTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.service = Service.objects.create(
+            title="Услуга", slug="svc", short_description="s", description="d"
+        )
+        cls.plain = PortfolioItem.objects.create(title="Без 3D", slug="plain", category="print")
+
+    def test_3d_work_shows_a_lazy_facade_instead_of_loading_the_viewer(self):
+        with tempfile.TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            work = PortfolioItem.objects.create(
+                title="С 3D",
+                slug="with-3d",
+                category="print",
+                model_file=SimpleUploadedFile("m.glb", b"glTF" + b"\0" * 20),
+            )
+            html = self.client.get(work.get_absolute_url()).content.decode()
+        self.assertIn("data-viewer-start", html)
+        self.assertIn(f'data-src="{work.model_file.url}"', html)
+        self.assertIn("/static/vendor/model-viewer/model-viewer.min.js", html)
+        self.assertNotIn('<script type="module"', html)  # тяжёлый скрипт не грузится сразу
+        self.assertNotIn("<model-viewer", html)
+
+    def test_work_without_model_has_no_viewer_controls(self):
+        html = self.client.get(self.plain.get_absolute_url()).content.decode()
+        self.assertNotIn("data-viewer", html)
+        self.assertNotIn("Крутить модель", html)
+
+    def test_list_pages_do_not_skip_heading_levels(self):
+        for url in (reverse("services"), reverse("portfolio")):
+            with self.subTest(url):
+                html = self.client.get(url).content.decode()
+                self.assertIn("<h2>", html)
+                self.assertNotIn("<h3>", html)  # под <h1> сразу идут <h2>
+
+    def test_home_cards_stay_h3_under_section_headings(self):
+        html = self.client.get(reverse("home")).content.decode()
+        self.assertIn("<h3>", html)
+
+    def test_layout_landmarks_and_skip_link(self):
+        html = self.client.get(reverse("home")).content.decode()
+        self.assertIn('class="skip-link" href="#main"', html)
+        self.assertIn('<main id="main">', html)
+        self.assertIn('aria-controls="site-nav"', html)
+        self.assertIn('name="theme-color"', html)
