@@ -48,10 +48,11 @@ def _own_orders(tg_id: int):
 
 
 def _order_dict(order: Order) -> dict:
+    service = order.service.title if order.service else "Индивидуальный заказ"
     return {
         "id": order.pk,
-        "title": f"№{order.pk} · {order.service.title if order.service else 'Индивидуальный заказ'}",
-        "service": order.service.title if order.service else "Индивидуальный заказ",
+        "title": f"№{order.pk} · {service}",
+        "service": service,
         "status": order.get_status_display(),
         "status_code": order.status,
         "name": order.name,

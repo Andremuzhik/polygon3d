@@ -405,7 +405,7 @@ class ThrottleTests(TestCase):
         self.assertEqual(
             self.post_order("172.18.0.5", HTTP_X_FORWARDED_FOR="203.0.113.8").status_code, 302
         )
-        # клиент не может сбросить счётчик, дописав свой адрес: берётся последний, добавленный прокси
+        # клиент не сбросит счётчик, дописав свой адрес: берётся последний, добавленный прокси
         self.assertEqual(
             self.post_order("172.18.0.5", HTTP_X_FORWARDED_FOR="1.1.1.1, 203.0.113.7").status_code,
             429,

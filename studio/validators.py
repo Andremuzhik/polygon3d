@@ -22,7 +22,8 @@ DELIVERY_EXTENSIONS = [
     "blend",
 ]
 
-# Начало файла для форматов с сигнатурой. У obj, stl и ascii-fbx сигнатуры нет, для них — чёрный список ниже.
+# Начало файла для форматов с сигнатурой. У obj, stl и ascii-fbx сигнатуры нет,
+# для них — чёрный список ниже.
 SIGNATURES: dict[str, tuple[bytes, ...]] = {
     "png": (b"\x89PNG\r\n\x1a\n",),
     "jpg": (b"\xff\xd8\xff",),
@@ -71,7 +72,8 @@ def validate_file_content(file):
         head = head.encode("utf-8", "ignore")
 
     mismatch = ValidationError(
-        "Содержимое файла не соответствует его расширению. Загрузите настоящий файл нужного формата."
+        "Содержимое файла не соответствует его расширению. "
+        "Загрузите настоящий файл нужного формата."
     )
     if extension == "gltf":  # JSON-текст
         if not head.lstrip().startswith(b"{"):

@@ -178,7 +178,7 @@ class Order(models.Model):
 
 
 class OrderDelivery(models.Model):
-    """Файл с результатом работы: лежит в приватном хранилище, скачивают владелец заказа и менеджеры."""
+    """Результат работы: приватный файл, его скачивают только владелец заказа и менеджеры."""
 
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="deliveries")
     title = models.CharField(

@@ -24,7 +24,7 @@ def base_url():
 
 @pytest.fixture
 def new_page(browser):
-    """Фабрика страниц: у каждой свой контекст (куки, сессия) и список ошибок консоли в page.problems."""
+    """Фабрика страниц: свой контекст (куки, сессия) и ошибки консоли в page.problems."""
     contexts = []
 
     def make(**options):

@@ -95,7 +95,8 @@ else:
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Кэш в БД: общий для воркеров gunicorn и контейнеров, переживает перезапуск (нужен для лимитов запросов).
+# Кэш в БД: общий для воркеров gunicorn и контейнеров, переживает перезапуск
+# (нужен для лимитов запросов).
 # Таблицу создаёт `manage.py createcachetable` (entrypoint делает это при RUN_MIGRATIONS=1).
 CACHES = {
     "default": {

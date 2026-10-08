@@ -128,8 +128,9 @@ def message_created(message: OrderMessage) -> None:
 def delivery_created(delivery: OrderDelivery) -> None:
     """Менеджер загрузил результат: заказ уходит на согласование, клиент получает уведомление."""
     order = delivery.order
-    # Условный update() в БД, а не проверка по объекту в памяти: он мог устареть. И update(), а не save(),
-    # чтобы клиенту пришло одно уведомление «результат готов», без отдельного о смене статуса.
+    # Условный update() в БД, а не проверка по объекту в памяти: он мог устареть.
+    # И update(), а не save(), чтобы клиенту пришло одно уведомление «результат готов»,
+    # без отдельного о смене статуса.
     moved = Order.objects.filter(
         pk=order.pk, status__in=[Order.Status.NEW, Order.Status.IN_PROGRESS]
     ).update(status=Order.Status.REVIEW, updated_at=timezone.now())

@@ -33,6 +33,7 @@ lock:
 		pip-compile -q --generate-hashes --strip-extras --allow-unsafe -o requirements-dev.txt requirements-dev.in"
 
 lint:
+	docker run --rm -v "$(PWD)":/src -w /src python:3.13-slim sh -c "pip install -q pycodestyle && pycodestyle ."
 	docker run --rm -v "$(PWD)":/src -w /src ghcr.io/astral-sh/ruff check .
 	docker run --rm -v "$(PWD)":/src -w /src ghcr.io/astral-sh/ruff format --check .
 

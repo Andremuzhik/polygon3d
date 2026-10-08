@@ -63,7 +63,10 @@ async def start(message: Message, command: CommandObject, state: FSMContext):
     elif payload.startswith("order_"):
         order_id = await db.claim_order(payload.removeprefix("order_"), user.id, username)
         if order_id:
-            note = f"✅ Заказ №{order_id} привязан — буду сообщать о статусе и пересылать ответы менеджера.\n\n"
+            note = (
+                f"✅ Заказ №{order_id} привязан — буду сообщать о статусе "
+                "и пересылать ответы менеджера.\n\n"
+            )
         else:
             note = "⚠️ Не удалось привязать заказ: ссылка устарела или он уже привязан.\n\n"
     await message.answer(
@@ -330,7 +333,8 @@ async def delivery_files(call: CallbackQuery):
         except (OSError, TelegramAPIError):
             log.exception("Не удалось отправить файл %s", item["filename"])
             await call.message.answer(
-                f"Не получилось отправить «{escape(item['title'])}». Скачайте файл в личном кабинете "
+                f"Не получилось отправить «{escape(item['title'])}». "
+                "Скачайте файл в личном кабинете "
                 f"на сайте: {settings.SITE_URL}/cabinet/."
             )
 
@@ -370,7 +374,8 @@ async def delivery_revision_send(message: Message, state: FSMContext):
     number = await db.request_revision(message.from_user.id, order_id, message.text)
     await state.clear()
     await message.answer(
-        f"✅ Правки по заказу №{order_id} отправлены менеджеру, заказ снова в работе (правка {number})."
+        f"✅ Правки по заказу №{order_id} отправлены менеджеру, "
+        f"заказ снова в работе (правка {number})."
         if number
         else "Не удалось отправить правки: заказ уже не на согласовании.",
         reply_markup=kb.main_menu(),

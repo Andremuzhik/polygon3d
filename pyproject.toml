@@ -5,5 +5,4 @@ extend-exclude = ["migrations", "staticfiles", ".venv"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "DJ"]
-# E501: длину строк контролирует `ruff format`; длинные русские строки-литералы допустимы.
-ignore = ["DJ001", "E501"]
+ignore = ["DJ001"]  # E501 включён: максимальная длина строки — 100 (line-length)
