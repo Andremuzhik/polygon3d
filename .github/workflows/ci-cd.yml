@@ -49,9 +49,17 @@ jobs:
       - run: python manage.py check --deploy --fail-level ERROR
       - run: python manage.py test -v 2
 
+  smoke:
+    name: Docker smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the production image, start it with PostgreSQL and probe the pages
+        run: sh scripts/smoke_test.sh
+
   build:
     name: Build & push image
-    needs: test
+    needs: [test, smoke]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

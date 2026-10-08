@@ -1,4 +1,4 @@
-.PHONY: up down logs build test lint format migrations superuser seed shell
+.PHONY: up down logs build test smoke lint format migrations superuser seed shell
 
 up:
 	docker compose up --build -d
@@ -14,6 +14,9 @@ build:
 
 test:
 	docker compose run --rm -e DJANGO_DEBUG=0 web python manage.py test -v 2
+
+smoke:
+	sh scripts/smoke_test.sh
 
 lint:
 	docker run --rm -v "$(PWD)":/src -w /src ghcr.io/astral-sh/ruff check .
