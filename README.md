@@ -81,8 +81,9 @@ flowchart LR
 - **Заголовки безопасности.** CSP без `unsafe-eval` для скриптов (только `wasm-unsafe-eval` и gstatic для декодеров `model-viewer`), `Permissions-Policy`, HSTS за HTTPS. `model-viewer` лежит в `static/vendor` (сценарий `scripts/vendor_model_viewer.sh` проверяет контрольную сумму пакета), сторонних CDN в рантайме нет.
 - **Сканирование безопасности.** Отдельный workflow: CodeQL (Python и JS), `pip-audit` по закреплённым зависимостям, Trivy по собранному Docker-образу (падает на исправимых HIGH/CRITICAL), gitleaks по всей истории git; плюс запуск раз в неделю, потому что новые уязвимости появляются и без наших коммитов. Локально то же самое делает `make scan`. Первый же прогон Trivy нашёл уязвимые библиотеки, вшитые в `pip` внутри образа, поэтому `pip` удаляется из итогового образа.
 - **Воспроизводимые сборки.** `requirements.in` задаёт ограничения, `pip-compile` собирает `requirements.txt` с хешами (`make lock`), pip ставит их в режиме `--require-hashes`. Dependabot обновляет pip, Docker-образы и GitHub Actions.
+- **E2E на боевой конфигурации.** Браузерные тесты идут не против dev-сервера, а против production-образа за Caddy: так проверяются реальные заголовки (CSP, кэш, скрытый `Server`), раздача публичных медиа и закрытость приватных, хешированная статика и 3D-просмотрщик под CSP. Сквозной сценарий проводит заказ через клиента и менеджера (в настоящей админке Django) до приёмки работы.
 - **Доступность и скорость.** Lighthouse (мобильный профиль): доступность 100 на проверенных страницах, контраст по WCAG AA, ссылка «Перейти к содержимому», проверено на 390 px без горизонтального переполнения.
-- **Тесты:** 100 штук. Диалоги бота (оформление заказа, чат, права менеджера) гоняются через настоящий aiogram `Dispatcher` с поддельной сессией Telegram, плюс БД-слой, outbox, лимиты и проверка файлов; в CI идут на PostgreSQL. Отдельный smoke-тест поднимает собранный Docker-образ с PostgreSQL и обходит страницы (`make smoke`).
+- **Тесты:** 137 unit- и интеграционных плюс 9 E2E-сценариев в браузере (см. ниже). Диалоги бота (оформление заказа, чат, права менеджера) гоняются через настоящий aiogram `Dispatcher` с поддельной сессией Telegram, плюс БД-слой, outbox, лимиты и проверка файлов; в CI идут на PostgreSQL. Отдельный smoke-тест поднимает собранный Docker-образ с PostgreSQL и обходит страницы (`make smoke`).
 
 ## Быстрый старт (нужен только Docker)
 
@@ -94,7 +95,7 @@ make seed         # демо-услуги, 6 работ с 3D-моделями �
 make superuser    # администратор → http://localhost:8000/admin/
 ```
 
-Остальное: `make logs`, `make down`, `make test`, `make smoke` (smoke-тест боевого образа), `make scan` (проверки безопасности), `make lint`, `make format`, `make lock` (пересобрать `requirements.txt` с хешами).
+Остальное: `make logs`, `make down`, `make test`, `make smoke` (smoke-тест боевого образа), `make e2e` (сценарии в браузере), `make scan` (проверки безопасности), `make lint`, `make format`, `make lock` (пересобрать `requirements.txt` с хешами).
 
 ### Подключение бота
 1. Создайте бота у [@BotFather](https://t.me/BotFather) и получите токен.
@@ -115,6 +116,7 @@ bot/          aiogram: handlers, keyboards, db-слой, outbox
 templates/    шаблоны       static/    CSS и JS
 demo_assets/  генератор демо-моделей, .glb и превью
 scripts/      smoke-тест Docker-образа, установка model-viewer
+e2e/          сценарии Playwright и стек для них (compose поверх боевого)
 deploy/       docker-compose.prod.yml и Caddyfile для сервера
 docs/         скриншоты для README
 .github/      CI/CD пайплайн
@@ -127,8 +129,9 @@ docs/         скриншоты для README
 | Этап | Когда | Что делает |
 |------|-------|-----------|
 | `test` | каждый push и PR | ruff, проверка миграций, `check --deploy`, тесты на PostgreSQL |
+| `e2e` | каждый push и PR | боевой стек с Caddy (HTTPS от внутреннего CA) и сценарии в Chromium через Playwright: страницы и заголовки, 3D по кнопке, мобильная ширина, полный путь «клиент → менеджер в админке → результат → правки → приёмка» |
 | `smoke` | каждый push и PR | собирает production-образ, поднимает с PostgreSQL, обходит страницы, проверяет лимит запросов, статику и запуск не от root |
-| `build` | push в `main`, после `test` и `smoke` | сборка образа, публикация в GHCR (`:sha` и `:latest`) |
+| `build` | push в `main`, после `test`, `smoke` и `e2e` | сборка образа, публикация в GHCR (`:sha` и `:latest`) |
 | `Security` (отдельный workflow) | push, PR и раз в неделю | CodeQL, pip-audit, Trivy по образу, gitleaks по истории |
 | `deploy` | вручную (Run workflow) | копирует compose-файлы на сервер по SSH, делает `pull` и `up -d` |
 

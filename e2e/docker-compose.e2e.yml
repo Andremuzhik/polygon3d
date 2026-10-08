@@ -1,0 +1,14 @@
+# Поверх боевого compose: те же образы и тот же Caddy, но свои переменные и без публикации портов.
+# Пути здесь относятся к каталогу первого файла (deploy/).
+services:
+  web:
+    env_file: !override
+      - ../e2e/e2e.env
+  caddy:
+    ports: !reset []
+    networks:
+      default:
+        # Имя .internal Caddy считает внутренним и выпускает для него сертификат своим CA (без Let's Encrypt),
+        # а Chromium разрешает его через DNS Docker.
+        aliases:
+          - e2e.internal

@@ -57,9 +57,17 @@ jobs:
       - name: Build the production image, start it with PostgreSQL and probe the pages
         run: sh scripts/smoke_test.sh
 
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Production stack with Caddy, browser scenarios for customer and manager
+        run: sh e2e/run.sh
+
   build:
     name: Build & push image
-    needs: [test, smoke]
+    needs: [test, smoke, e2e]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

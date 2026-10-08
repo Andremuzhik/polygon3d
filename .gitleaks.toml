@@ -10,4 +10,5 @@ description = "Фиктивные значения в тестах"
 regexes = [
   '''smoke-test-secret-key-[0-9a-f]+''',
   '''very-Strong-pass-77''',
+  '''Journey-pass-4821''',  # пароль тестового клиента в e2e/test_journey.py
 ]
