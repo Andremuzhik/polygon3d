@@ -1,6 +1,10 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{{ service.title }} — {{ SITE_NAME }}{% endblock %}
 {% block description %}{{ service.short_description }}{% endblock %}
+{% block og_title %}{{ service.title }} — {{ SITE_NAME }}{% endblock %}
+{% block og_description %}{{ service.short_description }}{% endblock %}
+{% block og_image %}{% if service.image %}{{ request.scheme }}://{{ request.get_host }}{{ service.image.url }}{% else %}{{ request.scheme }}://{{ request.get_host }}{% static 'img/og-cover.png' %}{% endif %}{% endblock %}
 {% block content %}
 <section class="section">
   <div class="container detail">

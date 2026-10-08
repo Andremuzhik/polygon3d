@@ -1,5 +1,9 @@
 {% extends "base.html" %}
+{% load static %}
 {% block title %}{{ work.title }} — {{ SITE_NAME }}{% endblock %}
+{% block og_title %}{{ work.title }} — {{ SITE_NAME }}{% endblock %}
+{% block og_description %}{{ work.get_category_display }}. {{ work.description|truncatechars:150 }}{% endblock %}
+{% block og_image %}{% if work.image %}{{ request.scheme }}://{{ request.get_host }}{{ work.image.url }}{% else %}{{ request.scheme }}://{{ request.get_host }}{% static 'img/og-cover.png' %}{% endif %}{% endblock %}
 {% block head %}
   {% if work.model_file %}<script type="module" src="https://unpkg.com/@google/model-viewer@4/dist/model-viewer.min.js"></script>{% endif %}
 {% endblock %}

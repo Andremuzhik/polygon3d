@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Страница не найдена — {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container narrow">
+    <div class="panel panel--center">
+      <p class="eyebrow">Ошибка 404</p>
+      <h1>Такой страницы нет</h1>
+      <p class="lead" style="margin-inline:auto">Возможно, ссылка устарела или в адресе опечатка.</p>
+      <div class="actions" style="justify-content:center">
+        <a class="btn" href="{% url 'home' %}">На главную</a>
+        <a class="btn btn--ghost" href="{% url 'portfolio' %}">Смотреть портфолио</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

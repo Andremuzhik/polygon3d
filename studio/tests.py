@@ -1,10 +1,13 @@
+import re
 import tempfile
 
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
+from django.views.defaults import server_error
 
 from .models import Notification, Order, OrderMessage, PortfolioItem, Review, Service
 
@@ -231,3 +234,122 @@ class SeedDemoTests(TestCase):
             self.assertTrue(all(w.image and w.model_file for w in works))
             self.assertTrue(all(s.image for s in Service.objects.all()))
             self.assertEqual(Review.objects.count(), 3)
+
+
+class PasswordResetTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = User.objects.create_user("alice", "alice@example.com", "old-pass-12345")
+
+    def test_login_page_links_to_reset(self):
+        response = self.client.get(reverse("login"))
+        self.assertContains(response, reverse("password_reset"))
+
+    def test_full_reset_flow(self):
+        response = self.client.post(reverse("password_reset"), {"email": "alice@example.com"})
+        self.assertRedirects(response, reverse("password_reset_done"))
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["alice@example.com"])
+        self.assertIn("Восстановление пароля", message.subject)
+        self.assertIn("alice", message.body)
+        link = re.search(r"https?://[^/\s]+(/accounts/reset/\S+)", message.body).group(1)
+
+        form_page = self.client.get(link, follow=True)
+        self.assertContains(form_page, "Новый пароль")
+        form_url = form_page.redirect_chain[-1][0]
+        new_password = "brand-New-pass-91"
+        done = self.client.post(
+            form_url, {"new_password1": new_password, "new_password2": new_password}
+        )
+        self.assertRedirects(done, reverse("password_reset_complete"))
+
+        self.assertTrue(self.client.login(username="alice", password=new_password))
+        self.client.logout()
+        self.assertFalse(self.client.login(username="alice", password="old-pass-12345"))
+
+    def test_link_is_single_use(self):
+        self.client.post(reverse("password_reset"), {"email": "alice@example.com"})
+        link = re.search(r"(/accounts/reset/\S+)", mail.outbox[0].body).group(1)
+        form_url = self.client.get(link, follow=True).redirect_chain[-1][0]
+        password = "brand-New-pass-91"
+        self.client.post(form_url, {"new_password1": password, "new_password2": password})
+
+        reused = self.client.get(link, follow=True)
+
+        self.assertContains(reused, "Ссылка недействительна")
+
+    def test_unknown_email_does_not_leak_account_existence(self):
+        response = self.client.post(reverse("password_reset"), {"email": "nobody@example.com"})
+        self.assertRedirects(response, reverse("password_reset_done"))
+        self.assertEqual(mail.outbox, [])
+
+    def test_bad_token(self):
+        response = self.client.get("/accounts/reset/MQ/bad-token/", follow=True)
+        self.assertContains(response, "Ссылка недействительна")
+
+
+class SeoAndErrorPagesTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.service = Service.objects.create(
+            title="Видимая", slug="visible", short_description="s", description="d"
+        )
+        Service.objects.create(
+            title="Скрытая", slug="hidden", short_description="s", description="d", is_active=False
+        )
+        cls.work = PortfolioItem.objects.create(
+            title="Опубликованная", slug="shown", category=PortfolioItem.Category.PRINT
+        )
+        PortfolioItem.objects.create(
+            title="Черновик",
+            slug="draft",
+            category=PortfolioItem.Category.PRINT,
+            is_published=False,
+        )
+
+    def test_robots_txt(self):
+        response = self.client.get(reverse("robots"))
+        self.assertEqual(response["Content-Type"], "text/plain")
+        self.assertContains(response, "Disallow: /admin/")
+        self.assertContains(response, "Disallow: /cabinet/")
+        self.assertContains(response, "Sitemap: http://testserver/sitemap.xml")
+
+    def test_sitemap_lists_only_public_pages(self):
+        body = self.client.get(reverse("sitemap")).content.decode()
+        self.assertIn("http://testserver/services/visible/", body)
+        self.assertIn("http://testserver/portfolio/shown/", body)
+        self.assertIn("http://testserver/order/", body)
+        self.assertNotIn("hidden", body)
+        self.assertNotIn("draft", body)
+        self.assertNotIn("/admin/", body)
+        self.assertNotIn("/cabinet/", body)
+
+    def test_open_graph_defaults(self):
+        body = self.client.get(reverse("home")).content.decode()
+        self.assertIn(
+            'property="og:image" content="http://testserver/static/img/og-cover.png"', body
+        )
+        self.assertIn('rel="canonical" href="http://testserver/"', body)
+        self.assertIn('rel="icon"', body)
+
+    def test_detail_pages_override_open_graph(self):
+        service = self.client.get(self.service.get_absolute_url()).content.decode()
+        self.assertIn('property="og:title" content="Видимая — Polygon3D"', service)
+        self.assertIn("og-cover.png", service)  # у услуги нет картинки → запасная
+
+        work = self.client.get(self.work.get_absolute_url()).content.decode()
+        self.assertIn('property="og:title" content="Опубликованная — Polygon3D"', work)
+        self.assertIn("Модели для 3D-печати", work)
+
+    def test_custom_404(self):
+        response = self.client.get("/no-such-page/")
+        self.assertContains(response, "Такой страницы нет", status_code=404)
+        self.assertContains(response, "На главную", status_code=404)
+
+    def test_custom_500_is_standalone(self):
+        request = RequestFactory().get("/boom/")
+        response = server_error(request)
+        self.assertEqual(response.status_code, 500)
+        self.assertIn("Что-то пошло не так", response.content.decode())

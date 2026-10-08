@@ -18,6 +18,18 @@ def healthz(request):
     return HttpResponse("ok", content_type="text/plain")
 
 
+def robots_txt(request):
+    lines = [
+        "User-agent: *",
+        "Disallow: /admin/",
+        "Disallow: /accounts/",
+        "Disallow: /cabinet/",
+        "Disallow: /order/thanks/",
+        f"Sitemap: {request.scheme}://{request.get_host()}/sitemap.xml",
+    ]
+    return HttpResponse("\n".join(lines) + "\n", content_type="text/plain")
+
+
 def home(request):
     return render(
         request,
