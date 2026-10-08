@@ -2,6 +2,7 @@ from unittest import mock
 
 from aiogram.exceptions import TelegramForbiddenError
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase, override_settings
 
 from studio.models import Notification, Order, OrderMessage, Profile, Service
@@ -42,6 +43,17 @@ class BotDbTests(TestCase):
                 name="X",
                 description="desc desc desc",
                 file=("evil.exe", b"MZ"),
+            )
+        self.assertFalse(await Order.objects.aexists())
+
+    async def test_reference_content_must_match_extension(self):
+        with self.assertRaises(ValidationError):
+            await db.create_order(
+                tg_id=1,
+                tg_username="",
+                name="X",
+                description="desc desc desc",
+                file=("photo.png", b"MZ\x90\x00 this is a Windows executable"),
             )
         self.assertFalse(await Order.objects.aexists())
 

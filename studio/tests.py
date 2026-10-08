@@ -621,3 +621,91 @@ class ViewerAndAccessibilityTests(TestCase):
         self.assertIn('<main id="main">', html)
         self.assertIn('aria-controls="site-nav"', html)
         self.assertIn('name="theme-color"', html)
+
+
+class UploadContentTests(TestCase):
+    """Файлы проверяются по содержимому, а не только по расширению."""
+
+    def setUp(self):
+        self._media = tempfile.TemporaryDirectory()
+        self.addCleanup(self._media.cleanup)
+        override = override_settings(MEDIA_ROOT=self._media.name, TELEGRAM_BOT_TOKEN="")
+        override.enable()
+        self.addCleanup(override.disable)
+
+    def submit(self, upload):
+        # у каждой отправки свой IP, чтобы тест не упирался в лимит частоты заявок
+        self._ip_counter = getattr(self, "_ip_counter", 0) + 1
+        return self.client.post(
+            reverse("order"),
+            {**ORDER_DATA, "reference_file": upload},
+            REMOTE_ADDR=f"10.77.0.{self._ip_counter}",
+        )
+
+    def accepted(self, name, content):
+        response = self.submit(SimpleUploadedFile(name, content))
+        self.assertEqual(response.status_code, 302, f"{name} должен приниматься")
+        return Order.objects.latest("pk")
+
+    def rejected(self, name, content):
+        before = Order.objects.count()
+        response = self.submit(SimpleUploadedFile(name, content))
+        self.assertEqual(response.status_code, 200, f"{name} должен отклоняться")
+        self.assertContains(response, "не соответствует его расширению")
+        self.assertEqual(Order.objects.count(), before)
+
+    def test_real_files_are_accepted(self):
+        import io
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("model.obj", "v 0 0 0")
+        self.accepted("sketch.png", make_image(size=(20, 20)).read())
+        self.accepted("sketch.jpg", make_image(size=(20, 20), fmt="JPEG", name="x.jpg").read())
+        self.accepted("brief.pdf", b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n")
+        self.accepted("pack.zip", buffer.getvalue())
+        self.accepted("scene.glb", b"glTF\x02\x00\x00\x00" + b"\0" * 16)
+        self.accepted("model.obj", b"# exported\nv 0 0 0\nv 1 0 0\nf 1 2 1\n")
+        self.accepted("part.stl", b"solid cube\n facet normal 0 0 1\nendsolid cube\n")
+        self.accepted("binary.stl", bytes(80) + b"\x01\x00\x00\x00" + bytes(50))
+        self.accepted("rig.fbx", b"Kaydara FBX Binary  \x00\x1a\x00" + bytes(30))
+        self.accepted("ascii.fbx", b"; FBX 7.4.0 project file\n")
+
+    def test_renamed_executables_are_rejected(self):
+        self.rejected("photo.png", b"MZ\x90\x00\x03\x00\x00\x00 windows executable")
+        self.rejected("photo.jpg", b"\x7fELF\x02\x01\x01 linux executable")
+
+    def test_wrong_format_behind_a_valid_extension_is_rejected(self):
+        self.rejected("brief.pdf", make_image(size=(10, 10)).read())  # PNG под видом PDF
+        self.rejected("pack.zip", b"just some text, not an archive")
+        self.rejected("scene.glb", b"<html><script>alert(1)</script></html>")
+        self.rejected("rig.fbx", b"MZ not an fbx at all")
+
+    def test_markup_and_scripts_disguised_as_text_formats_are_rejected(self):
+        self.rejected("model.obj", b"<script>alert(document.cookie)</script>")
+        self.rejected("model.obj", b"  <!DOCTYPE html><html></html>")
+        self.rejected("part.stl", b"<?php system($_GET['c']); ?>")
+        self.rejected("part.stl", b"#!/bin/sh\nrm -rf /\n")
+
+    def test_stream_position_is_reset_after_check(self):
+        order = self.accepted("brief.pdf", b"%PDF-1.4\nbody-of-the-file")
+        self.assertEqual(order.reference_file.read(), b"%PDF-1.4\nbody-of-the-file")
+
+    def test_portfolio_model_validation(self):
+        from django.core.exceptions import ValidationError
+
+        def check(name, content):
+            item = PortfolioItem(title="T", slug="t", category="print")
+            item.model_file = SimpleUploadedFile(name, content)
+            item.full_clean(exclude=["image"])
+
+        check("ok.glb", b"glTF\x02\x00\x00\x00" + b"\0" * 16)
+        check("ok.gltf", b'  {"asset": {"version": "2.0"}}')
+        for name, content in [
+            ("fake.glb", b"<html></html>"),
+            ("fake.gltf", b"MZ binary"),
+            ("fake.glb", b"MZ\x90\x00 binary"),
+        ]:
+            with self.subTest(name, content=content[:6]), self.assertRaises(ValidationError):
+                check(name, content)

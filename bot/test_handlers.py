@@ -25,6 +25,7 @@ from .main import build_dispatcher
 AUTH_User = get_user_model()
 logging.getLogger("aiogram.event").setLevel(logging.WARNING)
 ADMIN_ID = 9001
+FAKE_JPEG = b"\xff\xd8\xff\xe0" + b"jpeg-body" * 4
 _ids = itertools.count(1000)
 _dispatcher = None
 
@@ -272,13 +273,15 @@ class OrderFlowTests(HandlerTestCase):
         with (
             tempfile.TemporaryDirectory() as media,
             override_settings(MEDIA_ROOT=media),
-            mock.patch.object(Bot, "download", new=mock.AsyncMock(return_value=io.BytesIO(b"img"))),
+            mock.patch.object(
+                Bot, "download", new=mock.AsyncMock(return_value=io.BytesIO(FAKE_JPEG))
+            ),
         ):
             calls = await dialog.say(photo=[photo])
             order = await Order.objects.aget(telegram_id=dialog.id)
             self.assertTrue(order.reference_file.name.startswith("orders/"))
             self.assertTrue(order.reference_file.name.endswith(".jpg"))
-            self.assertEqual(order.reference_file.read(), b"img")
+            self.assertEqual(order.reference_file.read(), FAKE_JPEG)
         self.assertIn("принят", texts(calls))
 
     async def test_forbidden_document_keeps_dialog_open(self):
