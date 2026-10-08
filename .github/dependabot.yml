@@ -13,6 +13,11 @@ updates:
     groups:
       python-minor-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      # Django 5.2 — версия с долгой поддержкой (LTS). На новую мажорную версию переходим
+      # осознанно и вручную, а не по предложению бота.
+      - dependency-name: "django"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directory: "/"
@@ -29,6 +34,11 @@ updates:
       day: monday
     commit-message:
       prefix: "deps"
+    ignore:
+      # Смена мажорной версии PostgreSQL требует миграции данных (pg_upgrade): старый том
+      # с данными новая версия не откроет. Меняем только вручную и с планом переезда.
+      - dependency-name: "postgres"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
