@@ -10,6 +10,7 @@ from django.views.decorators.http import require_POST
 
 from .forms import MessageForm, OrderForm, RegisterForm
 from .models import Order, OrderMessage, PortfolioItem, Review, Service
+from .throttle import throttle
 
 
 def healthz(request):
@@ -92,6 +93,7 @@ def contacts(request):
     return render(request, "studio/contacts.html")
 
 
+@throttle("order", limit=8, window=3600)
 def order_create(request):
     initial = {}
     service = Service.objects.filter(slug=request.GET.get("service", ""), is_active=True).first()
@@ -122,6 +124,7 @@ def order_thanks(request, public_id):
     return render(request, "studio/order_thanks.html", {"order": order, "order_bot_link": bot_link})
 
 
+@throttle("register", limit=8, window=3600)
 def register(request):
     if request.user.is_authenticated:
         return redirect("cabinet")
@@ -154,6 +157,7 @@ def cabinet(request):
 
 
 @login_required
+@throttle("cabinet-message", limit=30, window=600)
 def cabinet_order(request, pk):
     order = get_object_or_404(Order.objects.select_related("service"), pk=pk, user=request.user)
     form = MessageForm(request.POST or None)

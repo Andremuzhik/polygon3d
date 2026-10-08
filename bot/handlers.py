@@ -215,6 +215,14 @@ async def order_reference(message: Message, state: FSMContext):
             phone=data.get("phone", ""),
             file=file,
         )
+    except db.RateLimited:
+        await state.clear()
+        await message.answer(
+            "Слишком много заказов за последний час. Попробуйте позже или напишите менеджеру "
+            "в чате по одному из ваших заказов.",
+            reply_markup=kb.main_menu(),
+        )
+        return
     except Exception:
         # Например, недопустимое расширение файла референса.
         log.exception("Не удалось создать заказ из бота")

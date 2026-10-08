@@ -94,6 +94,17 @@ else:
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Кэш в БД: общий для воркеров gunicorn и контейнеров, переживает перезапуск (нужен для лимитов запросов).
+# Таблицу создаёт `manage.py createcachetable` (entrypoint делает это при RUN_MIGRATIONS=1).
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "django_cache",
+    }
+}
+# True только если приложение доступно лишь через наш прокси (Caddy): тогда верим X-Forwarded-For.
+BEHIND_PROXY = env_bool("DJANGO_BEHIND_PROXY", False)
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},

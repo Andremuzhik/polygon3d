@@ -5,6 +5,7 @@
 """
 
 import uuid
+from datetime import timedelta
 from functools import wraps
 
 from asgiref.sync import sync_to_async
@@ -17,6 +18,11 @@ from studio.models import Notification, Order, OrderMessage, PortfolioItem, Prof
 from studio.validators import validate_reference
 
 MAX_ATTEMPTS = 5
+MAX_ORDERS_PER_HOUR = 5
+
+
+class RateLimited(Exception):
+    """Слишком много заказов с одного Telegram-аккаунта за час."""
 
 
 def db(fn):
@@ -108,6 +114,11 @@ def create_order(
     phone: str = "",
     file: tuple[str, bytes] | None = None,
 ) -> int:
+    recent = Order.objects.filter(
+        telegram_id=tg_id, created_at__gte=timezone.now() - timedelta(hours=1)
+    ).count()
+    if recent >= MAX_ORDERS_PER_HOUR:
+        raise RateLimited
     profile = Profile.objects.filter(telegram_id=tg_id).select_related("user").first()
     order = Order(
         user=profile.user if profile else None,

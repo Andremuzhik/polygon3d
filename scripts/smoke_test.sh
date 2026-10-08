@@ -73,6 +73,21 @@ done
 check_status /cabinet/ 302
 check_status /no-such-page/ 404
 
+echo "==> Ограничение частоты (таблица кэша создана entrypoint)"
+jar=$(mktemp)
+curl -s -c "$jar" -o /dev/null "http://127.0.0.1:$PORT/order/"
+csrf=$(awk '$6 == "csrftoken" {print $7}' "$jar")
+[ -n "$csrf" ] || fail "нет csrftoken-cookie на странице заказа"
+last=""
+for _ in $(seq 1 9); do  # лимит формы заказа — 8 POST в час с одного IP
+    last=$(curl -s -b "$jar" -o /dev/null -w '%{http_code}' -X POST \
+        -H "X-CSRFToken: $csrf" -H "Referer: http://127.0.0.1:$PORT/order/" \
+        -d "name=smoke" "http://127.0.0.1:$PORT/order/")
+done
+rm -f "$jar"
+[ "$last" = "429" ] || fail "9-й POST на /order/ вернул $last, ожидали 429 (лимит не работает)"
+echo "ok   9-й POST на /order/ получил 429"
+
 echo "==> Статика"
 css=$(curl -s "http://127.0.0.1:$PORT/" | grep -o '/static/css/style\.[a-f0-9]*\.css' | head -1)
 [ -n "$css" ] || fail "в HTML нет хешированной ссылки на CSS (collectstatic/манифест)"

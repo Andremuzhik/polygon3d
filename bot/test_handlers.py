@@ -445,3 +445,41 @@ class ManagerTests(HandlerTestCase):
         await stranger.say("я не менеджер")
 
         self.assertFalse(await OrderMessage.objects.filter(order=order).aexists())
+
+
+class BotRateLimitTests(HandlerTestCase):
+    async def test_too_many_orders_in_an_hour_are_refused(self):
+        dialog = self.dialog()
+        for _ in range(5):
+            await Order.objects.acreate(name="A", description="x", telegram_id=dialog.id)
+
+        await dialog.say(kb.BTN_ORDER)
+        await dialog.press(f"order:{self.service.pk}")
+        await dialog.say("Нужна ещё одна модель для игры")
+        await dialog.say(kb.BTN_SKIP)
+        calls = await dialog.say(kb.BTN_SKIP)
+
+        self.assertIn("Слишком много заказов", texts(calls))
+        self.assertEqual(await Order.objects.filter(telegram_id=dialog.id).acount(), 5)
+        # диалог сброшен, бот снова отвечает на команды
+        self.assertIn("Не понял", texts(await dialog.say("привет")))
+
+    async def test_old_orders_do_not_count(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        dialog = self.dialog()
+        for _ in range(5):
+            order = await Order.objects.acreate(name="A", description="x", telegram_id=dialog.id)
+            await Order.objects.filter(pk=order.pk).aupdate(
+                created_at=timezone.now() - timedelta(hours=2)
+            )
+
+        await dialog.say(kb.BTN_ORDER)
+        await dialog.press(f"order:{self.service.pk}")
+        await dialog.say("Нужна новая модель для игры")
+        await dialog.say(kb.BTN_SKIP)
+        calls = await dialog.say(kb.BTN_SKIP)
+
+        self.assertIn("принят", texts(calls))

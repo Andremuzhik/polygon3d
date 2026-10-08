@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Слишком много запросов — {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container narrow">
+    <div class="panel panel--center">
+      <p class="eyebrow">Ошибка 429</p>
+      <h1>Слишком много попыток</h1>
+      <p class="lead lead--center">Мы временно ограничили отправку форм с вашего адреса. Подождите около {{ retry_minutes }} мин. и попробуйте снова.</p>
+      <div class="actions actions--center">
+        <a class="btn" href="{% url 'home' %}">На главную</a>
+        {% if CONTACT_EMAIL %}<a class="btn btn--ghost" href="mailto:{{ CONTACT_EMAIL }}">Написать нам</a>{% endif %}
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

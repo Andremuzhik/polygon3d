@@ -29,6 +29,7 @@ services:
     <<: *app
     environment:
       RUN_MIGRATIONS: "1"
+      DJANGO_BEHIND_PROXY: "1"  # порт web наружу не опубликован, клиентский IP берём из X-Forwarded-For Caddy
     depends_on:
       db:
         condition: service_healthy

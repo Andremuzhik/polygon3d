@@ -5,6 +5,7 @@ from django.urls import path
 
 from . import views
 from .sitemaps import SITEMAPS
+from .throttle import throttle
 
 urlpatterns = [
     path("", views.home, name="home"),
@@ -19,15 +20,21 @@ urlpatterns = [
     path("contacts/", views.contacts, name="contacts"),
     path("order/", views.order_create, name="order"),
     path("order/thanks/<uuid:public_id>/", views.order_thanks, name="order-thanks"),
-    path("accounts/login/", auth_views.LoginView.as_view(), name="login"),
+    path(
+        "accounts/login/",
+        throttle("login", limit=10, window=900)(auth_views.LoginView.as_view()),
+        name="login",
+    ),
     path("accounts/logout/", auth_views.LogoutView.as_view(), name="logout"),
     path("accounts/register/", views.register, name="register"),
     path(
         "accounts/password-reset/",
-        auth_views.PasswordResetView.as_view(
-            email_template_name="registration/password_reset_email.txt",
-            subject_template_name="registration/password_reset_subject.txt",
-            extra_email_context={"brand": settings.SITE_NAME},
+        throttle("password-reset", limit=5, window=3600)(
+            auth_views.PasswordResetView.as_view(
+                email_template_name="registration/password_reset_email.txt",
+                subject_template_name="registration/password_reset_subject.txt",
+                extra_email_context={"brand": settings.SITE_NAME},
+            )
         ),
         name="password_reset",
     ),

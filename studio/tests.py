@@ -353,3 +353,84 @@ class SeoAndErrorPagesTests(TestCase):
         response = server_error(request)
         self.assertEqual(response.status_code, 500)
         self.assertIn("Что-то пошло не так", response.content.decode())
+
+
+@override_settings(TELEGRAM_BOT_TOKEN="")
+class ThrottleTests(TestCase):
+    def post_order(self, ip="10.0.0.1", **extra):
+        return self.client.post(reverse("order"), ORDER_DATA, REMOTE_ADDR=ip, **extra)
+
+    def test_order_form_is_limited_per_ip(self):
+        for _ in range(8):
+            self.assertEqual(self.post_order().status_code, 302)
+
+        blocked = self.post_order()
+
+        self.assertContains(blocked, "Слишком много попыток", status_code=429)
+        self.assertEqual(Order.objects.count(), 8)
+
+    def test_other_ip_is_not_affected(self):
+        for _ in range(9):
+            self.post_order("10.0.0.1")
+        self.assertEqual(self.post_order("10.0.0.2").status_code, 302)
+
+    def test_get_requests_are_never_limited(self):
+        for _ in range(30):
+            self.assertEqual(
+                self.client.get(reverse("order"), REMOTE_ADDR="10.0.0.1").status_code, 200
+            )
+
+    def test_window_expiry_reopens_the_gate(self):
+        from django.core.cache import cache
+
+        for _ in range(9):
+            self.post_order()
+        self.assertEqual(self.post_order().status_code, 429)
+
+        cache.delete("throttle:order:10.0.0.1")  # то же, что истечение окна
+
+        self.assertEqual(self.post_order().status_code, 302)
+
+    def test_forwarded_header_ignored_without_proxy(self):
+        for i in range(9):  # злоумышленник подделывает заголовок, чтобы обойти лимит
+            self.post_order(HTTP_X_FORWARDED_FOR=f"1.2.3.{i}")
+        self.assertEqual(self.post_order(HTTP_X_FORWARDED_FOR="9.9.9.9").status_code, 429)
+
+    @override_settings(BEHIND_PROXY=True)
+    def test_forwarded_header_used_behind_proxy(self):
+        for _ in range(9):
+            self.post_order("172.18.0.5", HTTP_X_FORWARDED_FOR="203.0.113.7")
+        # тот же адрес прокси, но другой клиент — лимит у него свой
+        self.assertEqual(
+            self.post_order("172.18.0.5", HTTP_X_FORWARDED_FOR="203.0.113.8").status_code, 302
+        )
+        # клиент не может сбросить счётчик, дописав свой адрес: берётся последний, добавленный прокси
+        self.assertEqual(
+            self.post_order("172.18.0.5", HTTP_X_FORWARDED_FOR="1.1.1.1, 203.0.113.7").status_code,
+            429,
+        )
+
+    def test_login_is_limited(self):
+        data = {"username": "nobody", "password": "wrong"}
+        for _ in range(10):
+            self.assertEqual(
+                self.client.post(reverse("login"), data, REMOTE_ADDR="10.1.1.1").status_code, 200
+            )
+        self.assertEqual(
+            self.client.post(reverse("login"), data, REMOTE_ADDR="10.1.1.1").status_code, 429
+        )
+
+    def test_password_reset_and_register_are_limited(self):
+        for _ in range(5):
+            self.client.post(reverse("password_reset"), {"email": "a@a.ru"}, REMOTE_ADDR="10.2.2.2")
+        blocked = self.client.post(
+            reverse("password_reset"), {"email": "a@a.ru"}, REMOTE_ADDR="10.2.2.2"
+        )
+        self.assertEqual(blocked.status_code, 429)
+        self.assertEqual(len(mail.outbox), 0)
+
+        for _ in range(8):
+            self.client.post(reverse("register"), {}, REMOTE_ADDR="10.3.3.3")
+        self.assertEqual(
+            self.client.post(reverse("register"), {}, REMOTE_ADDR="10.3.3.3").status_code, 429
+        )
