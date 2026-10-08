@@ -5,10 +5,11 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
 
+from .images import OptimizeImageOnUpload
 from .validators import validate_model, validate_reference
 
 
-class Service(models.Model):
+class Service(OptimizeImageOnUpload, models.Model):
     title = models.CharField("Название", max_length=120)
     slug = models.SlugField("Слаг (URL)", unique=True)
     short_description = models.CharField("Краткое описание", max_length=220)
@@ -31,7 +32,7 @@ class Service(models.Model):
         return reverse("service-detail", args=[self.slug])
 
 
-class PortfolioItem(models.Model):
+class PortfolioItem(OptimizeImageOnUpload, models.Model):
     class Category(models.TextChoices):
         CHARACTER = "character", "Персонажи"
         ARCHITECTURE = "architecture", "Архитектура"

@@ -1,9 +1,13 @@
 {$DOMAIN} {
 	encode zstd gzip
 
+	header -Server
+
 	# Раздаём только публичные медиа (услуги, портфолио).
 	# Файлы клиентов (media/orders/) отдаются Django только владельцу и менеджерам.
 	handle /media/public/* {
+		# Django не перезаписывает файлы с тем же именем (добавляет суффикс), поэтому кэшируем надолго.
+		header Cache-Control "public, max-age=2592000"
 		root * /srv
 		file_server
 	}

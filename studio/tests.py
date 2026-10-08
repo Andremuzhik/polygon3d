@@ -434,3 +434,143 @@ class ThrottleTests(TestCase):
         self.assertEqual(
             self.client.post(reverse("register"), {}, REMOTE_ADDR="10.3.3.3").status_code, 429
         )
+
+
+def make_image(size=(3000, 2000), mode="RGB", color=(200, 30, 30), fmt="PNG", name="photo.png"):
+    import io
+
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new(mode, size, color).save(buffer, fmt)
+    return SimpleUploadedFile(name, buffer.getvalue(), content_type=f"image/{fmt.lower()}")
+
+
+class ImageOptimizationTests(TestCase):
+    def setUp(self):
+        self._media = tempfile.TemporaryDirectory()
+        self.addCleanup(self._media.cleanup)
+        self._override = override_settings(MEDIA_ROOT=self._media.name)
+        self._override.enable()
+        self.addCleanup(self._override.disable)
+
+    def open_saved(self, field):
+        from PIL import Image
+
+        with Image.open(field.path) as image:
+            return image.format, image.size, image.mode
+
+    def test_large_upload_becomes_small_jpeg(self):
+        original = make_image()
+        work = PortfolioItem.objects.create(title="W", slug="w", category="print", image=original)
+
+        self.assertTrue(work.image.name.endswith("photo.jpg"))
+        fmt, size, mode = self.open_saved(work.image)
+        self.assertEqual((fmt, mode), ("JPEG", "RGB"))
+        self.assertEqual(max(size), 1600)
+        self.assertEqual(size, (1600, 1067))  # пропорции сохранены
+        self.assertLess(work.image.size, original.size)
+
+    def test_small_image_is_not_upscaled(self):
+        service = Service.objects.create(
+            title="S",
+            slug="s",
+            short_description="s",
+            description="d",
+            image=make_image(size=(400, 300)),
+        )
+        self.assertEqual(self.open_saved(service.image)[1], (400, 300))
+
+    def test_transparency_is_flattened_to_white(self):
+        from PIL import Image
+
+        service = Service.objects.create(
+            title="S",
+            slug="s",
+            short_description="s",
+            description="d",
+            image=make_image(size=(50, 50), mode="RGBA", color=(0, 0, 0, 0)),
+        )
+        with Image.open(service.image.path) as image:
+            r, g, b = image.getpixel((25, 25))
+        self.assertGreater(min(r, g, b), 245)
+
+    def test_resaving_does_not_recompress(self):
+        service = Service.objects.create(
+            title="S", slug="s", short_description="s", description="d", image=make_image()
+        )
+        name, mtime = (
+            service.image.name,
+            service.image.storage.get_modified_time(service.image.name),
+        )
+
+        service.title = "Новое имя"
+        service.save()
+
+        self.assertEqual(service.image.name, name)
+        self.assertEqual(service.image.storage.get_modified_time(name), mtime)
+
+    def test_broken_image_is_kept_untouched(self):
+        broken = SimpleUploadedFile("broken.png", b"not an image at all", content_type="image/png")
+        service = Service.objects.create(
+            title="S", slug="s", short_description="s", description="d", image=broken
+        )
+        self.assertTrue(service.image.name.endswith("broken.png"))
+
+
+class SecurityHeadersTests(TestCase):
+    def test_site_pages_get_csp_and_permissions_policy(self):
+        response = self.client.get(reverse("home"))
+        csp = response["Content-Security-Policy"]
+        self.assertIn("script-src 'self' 'wasm-unsafe-eval'", csp)
+        self.assertNotIn("'unsafe-eval'", csp.replace("'wasm-unsafe-eval'", ""))
+        self.assertIn("frame-ancestors 'none'", csp)
+        self.assertIn("object-src 'none'", csp)
+        self.assertIn("camera=()", response["Permissions-Policy"])
+
+    def test_admin_keeps_django_defaults(self):
+        response = self.client.get("/admin/login/")
+        self.assertNotIn("Content-Security-Policy", response)
+        self.assertIn("Permissions-Policy", response)
+
+    @override_settings(DEBUG=True)
+    def test_debug_error_pages_are_not_restricted(self):
+        self.assertNotIn("Content-Security-Policy", self.client.get("/no-such-page/"))
+
+    def test_pages_have_no_inline_scripts_or_handlers(self):
+        with tempfile.TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            PortfolioItem.objects.create(
+                title="3D",
+                slug="viewer",
+                category="print",
+                model_file=SimpleUploadedFile("m.glb", b"glTF" + b"\0" * 20),
+            )
+            user = User.objects.create_user("u", "u@example.com", "pass-12345-x")
+            self.client.force_login(user)
+            for url in [
+                reverse("home"),
+                reverse("services"),
+                reverse("portfolio"),
+                reverse("portfolio-detail", args=["viewer"]),
+                reverse("order"),
+                reverse("cabinet"),
+                reverse("contacts"),
+                reverse("reviews"),
+                "/no-such-page/",
+            ]:
+                with self.subTest(url):
+                    html = self.client.get(url).content.decode()
+                    self.assertIsNone(re.search(r"<script(?![^>]*\bsrc=)", html), "inline <script>")
+                    self.assertIsNone(re.search(r"\son\w+=", html), "inline event handler")
+
+    def test_model_viewer_is_served_locally(self):
+        with tempfile.TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            PortfolioItem.objects.create(
+                title="3D",
+                slug="viewer",
+                category="print",
+                model_file=SimpleUploadedFile("m.glb", b"glTF" + b"\0" * 20),
+            )
+            html = self.client.get(reverse("portfolio-detail", args=["viewer"])).content.decode()
+        self.assertIn("/static/vendor/model-viewer/model-viewer.min.js", html)
+        self.assertNotIn("unpkg.com", html)

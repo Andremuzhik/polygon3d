@@ -112,7 +112,7 @@ class Command(BaseCommand):
                 },
             )
             preview = SERVICE_PREVIEWS[slug]
-            attach(service, "image", ASSETS / "previews" / f"{preview}.png")
+            attach(service, "image", ASSETS / "previews" / f"{preview}.jpg")
         for title, slug, category in WORKS:
             work, _ = PortfolioItem.objects.update_or_create(
                 slug=slug,
@@ -125,7 +125,7 @@ class Command(BaseCommand):
                     "Свои работы загружаются в админке: превью и файл .glb.",
                 },
             )
-            attach(work, "image", ASSETS / "previews" / f"{slug}.png")
+            attach(work, "image", ASSETS / "previews" / f"{slug}.jpg")
             attach(work, "model_file", ASSETS / "models" / f"{slug}.glb")
         for author, text, rating in REVIEWS:
             Review.objects.get_or_create(author=author, defaults={"text": text, "rating": rating})
