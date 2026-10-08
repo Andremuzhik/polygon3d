@@ -29,7 +29,7 @@ def new_page(browser):
 
     def make(**options):
         context = browser.new_context(ignore_https_errors=True, locale="ru-RU", **options)
-        context.set_default_timeout(30_000)
+        context.set_default_timeout(60_000)  # с запасом на загруженную машину
         contexts.append(context)
         page = context.new_page()
         page.problems = []

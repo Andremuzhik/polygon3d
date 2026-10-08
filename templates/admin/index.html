@@ -1,0 +1,67 @@
+{% extends "admin/index.html" %}
+{% load static %}
+{% block extrastyle %}{{ block.super }}<link rel="stylesheet" href="{% static 'css/admin-dashboard.css' %}">{% endblock %}
+{% block content %}
+{% if dashboard %}
+<section class="studio-dashboard" aria-label="Показатели студии">
+  <div class="studio-dashboard__cards">
+    <div class="studio-dashboard__card"><span>Всего заказов</span><strong>{{ dashboard.total }}</strong></div>
+    <div class="studio-dashboard__card"><span>Новых за месяц</span><strong>{{ dashboard.created_this_month }}</strong></div>
+    <div class="studio-dashboard__card {% if dashboard.stale_new %}studio-dashboard__card--alert{% endif %}"><span>Новые без реакции больше суток</span><strong>{{ dashboard.stale_new }}</strong></div>
+    <div class="studio-dashboard__card"><span>Ждут решения клиента</span><strong>{{ dashboard.waiting_client }}</strong></div>
+    <div class="studio-dashboard__card"><span>Выполнено за месяц</span><strong>{{ dashboard.done_this_month }}</strong></div>
+    <div class="studio-dashboard__card"><span>Доля выполненных</span><strong>{{ dashboard.completion_rate }}%</strong></div>
+    <div class="studio-dashboard__card"><span>Средний срок выполнения</span><strong>{% if dashboard.average_days is not None %}{{ dashboard.average_days }} дн.{% else %}—{% endif %}</strong></div>
+  </div>
+
+  <div class="studio-dashboard__row">
+    <div class="studio-dashboard__panel">
+      <h2>Заказы по месяцам</h2>
+      <div class="studio-dashboard__bars">
+        {% for m in dashboard.months %}
+          <div class="studio-dashboard__bar" title="{{ m.label }}: {{ m.count }}">
+            <span class="studio-dashboard__bar-count">{{ m.count }}</span>
+            <span class="studio-dashboard__bar-fill" style="height: {{ m.height }}%"></span>
+            <span class="studio-dashboard__bar-label">{{ m.label }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="studio-dashboard__panel">
+      <h2>По статусам</h2>
+      <ul class="studio-dashboard__list">
+        {% for s in dashboard.statuses %}<li><a href="{% url 'admin:studio_order_changelist' %}?status__exact={{ s.code }}">{{ s.label }}</a><b>{{ s.count }}</b></li>{% endfor %}
+      </ul>
+      <h2>Откуда заказы</h2>
+      <ul class="studio-dashboard__list">
+        {% for s in dashboard.sources %}<li>{{ s.label }}<b>{{ s.count }}</b></li>{% endfor %}
+      </ul>
+    </div>
+    <div class="studio-dashboard__panel">
+      <h2>Популярные услуги</h2>
+      <ul class="studio-dashboard__list">
+        {% for s in dashboard.top_services %}<li>{{ s.service__title }}<b>{{ s.n }}</b></li>{% empty %}<li>Пока нет данных</li>{% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="studio-dashboard__panel studio-dashboard__panel--wide">
+    <h2>Последние заказы</h2>
+    <table class="studio-dashboard__table">
+      <tbody>
+        {% for o in dashboard.recent %}
+          <tr>
+            <td><a href="{% url 'admin:studio_order_change' o.pk %}">№{{ o.pk }}</a></td>
+            <td>{{ o.name }}</td>
+            <td>{{ o.service|default:"—" }}</td>
+            <td>{{ o.get_status_display }}</td>
+            <td>{{ o.created_at|date:"d.m.Y H:i" }}</td>
+          </tr>
+        {% empty %}<tr><td>Заказов пока нет</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{{ block.super }}
+{% endblock %}

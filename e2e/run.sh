@@ -42,6 +42,6 @@ docker run --rm --init --ipc=host --network "${PROJECT}_default" \
     -e PYTHONDONTWRITEBYTECODE=1 \
     -e E2E_BASE_URL=https://e2e.internal -e E2E_ADMIN_USER="$ADMIN_USER" -e E2E_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
     "$PLAYWRIGHT_IMAGE" \
-    sh -c "pip install -q --root-user-action=ignore -r /e2e/requirements.txt && pytest -v -p no:cacheprovider /e2e" \
+    sh -c "pip install -q --root-user-action=ignore -r /e2e/requirements.txt && pytest -v --durations=5 -p no:cacheprovider /e2e" \
     || { FAILED=1; exit 1; }
 echo "E2E PASSED"

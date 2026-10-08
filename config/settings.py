@@ -27,7 +27,7 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1", *env_list("DJANGO_ALLOWED_HOSTS")]
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
+    "studio.admin_config.StudioAdminConfig",  # django.contrib.admin с дашбордом на главной
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",

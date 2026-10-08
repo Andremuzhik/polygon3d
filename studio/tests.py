@@ -1,3 +1,4 @@
+import csv
 import re
 import tempfile
 
@@ -1066,3 +1067,186 @@ class EmailNotificationTests(TestCase):
             self.order.save()
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.DONE)
+
+
+class DashboardStatsTests(TestCase):
+    def setUp(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        self.now = timezone.now()
+        self.ago = lambda **kw: self.now - timedelta(**kw)
+        self.timedelta = timedelta
+        override = override_settings(TELEGRAM_BOT_TOKEN="", EMAIL_NOTIFICATIONS=False)
+        override.enable()
+        self.addCleanup(override.disable)
+
+    def make(self, status=Order.Status.NEW, created=None, **kwargs):
+        kwargs.setdefault("name", "Клиент")
+        order = Order.objects.create(description="x", status=status, **kwargs)
+        if created:
+            Order.objects.filter(pk=order.pk).update(created_at=created)
+            order.refresh_from_db()
+        return order
+
+    def test_empty_database_does_not_break_anything(self):
+        from .dashboard import dashboard_stats
+
+        stats = dashboard_stats()
+        self.assertEqual(
+            (stats["total"], stats["completion_rate"], stats["average_days"]), (0, 0, None)
+        )
+        self.assertEqual(len(stats["months"]), 6)
+        self.assertTrue(all(m["count"] == 0 and m["height"] == 0 for m in stats["months"]))
+        self.assertEqual(stats["recent"], [])
+
+    def test_counts_statuses_sources_and_attention_flags(self):
+        from .dashboard import dashboard_stats
+
+        service = Service.objects.create(
+            title="Роботы", slug="r", short_description="s", description="d"
+        )
+        self.make(Order.Status.NEW, created=self.ago(days=2))  # давно без реакции
+        self.make(Order.Status.NEW)  # свежий — не считается просроченным
+        self.make(Order.Status.IN_PROGRESS, service=service, source=Order.Source.BOT)
+        self.make(Order.Status.REVIEW, service=service)
+        self.make(Order.Status.DONE)
+        self.make(Order.Status.CANCELLED)
+
+        stats = dashboard_stats()
+
+        self.assertEqual(stats["total"], 6)
+        by_code = {s["code"]: s["count"] for s in stats["statuses"]}
+        self.assertEqual(
+            by_code, {"new": 2, "in_progress": 1, "review": 1, "done": 1, "cancelled": 1}
+        )
+        self.assertEqual(stats["stale_new"], 1)
+        self.assertEqual(stats["waiting_client"], 1)
+        self.assertEqual(stats["completion_rate"], 17)  # 1 из 6
+        self.assertEqual(
+            {s["label"]: s["count"] for s in stats["sources"]}, {"Сайт": 5, "Telegram-бот": 1}
+        )
+        self.assertEqual(stats["top_services"], [{"service__title": "Роботы", "n": 2}])
+        self.assertEqual(len(stats["recent"]), 6)
+
+    def test_average_lead_time_comes_from_the_event_log(self):
+        from .dashboard import dashboard_stats
+
+        order = self.make(created=self.ago(days=10))
+        order.status = Order.Status.DONE
+        order.save()
+        order.events.filter(to_status="done").update(
+            created_at=self.ago(days=6)
+        )  # выполнен через 4 дня
+        other = self.make(created=self.ago(days=5))
+        other.status = Order.Status.DONE
+        other.save()
+        other.events.filter(to_status="done").update(created_at=self.ago(days=1))  # через 4 дня
+
+        self.assertEqual(dashboard_stats()["average_days"], 4.0)
+
+    def test_orders_are_bucketed_by_month_with_zero_fill(self):
+        from .dashboard import dashboard_stats
+
+        self.make(created=self.ago(days=95))
+        self.make(created=self.ago(days=95))
+        self.make()  # в этом месяце
+        stats = dashboard_stats(self.now)
+
+        counts = [m["count"] for m in stats["months"]]
+        self.assertEqual(sum(counts), 3)
+        self.assertEqual(counts[-1], 1)  # последний столбец — текущий месяц
+        self.assertEqual(max(m["height"] for m in stats["months"]), 100)
+        self.assertEqual(stats["created_this_month"], 1)
+
+    def test_done_this_month_counts_each_order_once(self):
+        from .dashboard import dashboard_stats
+
+        order = self.make()
+        for status in (Order.Status.DONE, Order.Status.IN_PROGRESS, Order.Status.DONE):
+            order.status = status
+            order.save()
+        self.assertEqual(dashboard_stats()["done_this_month"], 1)
+
+    def test_admin_index_shows_dashboard_only_to_those_who_may_see_orders(self):
+        self.make(name="Заметный клиент")
+        boss = User.objects.create_superuser("boss", "b@b.ru", "pass-12345-x")
+        self.client.force_login(boss)
+        page = self.client.get("/admin/")
+        self.assertContains(page, "Всего заказов")
+        self.assertContains(page, "Последние заказы")
+        self.assertContains(page, "Заметный клиент")
+
+        clerk = User.objects.create_user("clerk", "c@b.ru", "pass-12345-x", is_staff=True)
+        self.client.force_login(clerk)
+        self.assertNotContains(self.client.get("/admin/"), "Всего заказов")
+
+        self.client.logout()
+        self.assertEqual(self.client.get("/admin/").status_code, 302)
+
+
+class OrderCsvExportTests(TestCase):
+    def setUp(self):
+        override = override_settings(TELEGRAM_BOT_TOKEN="", EMAIL_NOTIFICATIONS=False)
+        override.enable()
+        self.addCleanup(override.disable)
+        self.boss = User.objects.create_superuser("boss", "b@b.ru", "pass-12345-x")
+        self.client.force_login(self.boss)
+
+    def export(self, *orders):
+        return self.client.post(
+            reverse("admin:studio_order_changelist"),
+            {"action": "export_csv", "_selected_action": [o.pk for o in orders]},
+        )
+
+    def test_csv_has_bom_headers_and_data(self):
+        service = Service.objects.create(
+            title="Роботы", slug="r", short_description="s", description="d"
+        )
+        order = Order.objects.create(
+            name="Иван",
+            email="i@example.com",
+            phone="+7 900 111-22-33",
+            telegram_username="ivan",
+            service=service,
+            budget="15 000 ₽",
+            description="Строка 1\nСтрока 2",
+        )
+
+        response = self.export(order)
+
+        self.assertEqual(response["Content-Type"], "text/csv; charset=utf-8")
+        self.assertIn("orders.csv", response["Content-Disposition"])
+        text = response.content.decode("utf-8")
+        self.assertTrue(text.startswith("﻿"))
+        rows = list(csv.reader(text.lstrip("﻿").splitlines(keepends=True), delimiter=";"))
+        self.assertEqual(rows[0][:3], ["№", "Создан", "Статус"])
+        row = rows[1]
+        self.assertEqual(row[0], str(order.pk))
+        self.assertEqual(row[2:6], ["Новый", "Сайт", "Роботы", "Иван"])
+        self.assertEqual(row[7], "+7 900 111-22-33")  # телефон остаётся читаемым, без апострофа
+        self.assertEqual(row[8], "ivan")  # без «@» и без защитного апострофа
+        self.assertIn("Строка 1\nСтрока 2", text)  # перенос строки сохранён внутри кавычек
+
+    def test_formula_injection_is_neutralised(self):
+        order = Order.objects.create(
+            name='=HYPERLINK("http://evil.example","клик")',
+            email="e@example.com",
+            phone="+1+1",
+            budget="@SUM(1+1)",
+            description="-2+3",
+        )
+        text = self.export(order).content.decode("utf-8")
+        self.assertIn("'=HYPERLINK", text)
+        self.assertIn("'+1+1", text)  # не похоже на телефон → защищено
+        self.assertIn("'@SUM(1+1)", text)
+        self.assertIn("'-2+3", text)
+        self.assertNotIn(";=HYPERLINK", text)
+
+    def test_only_staff_with_permission_can_export(self):
+        order = Order.objects.create(name="A", description="x")
+        self.client.logout()
+        response = self.export(order)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin/login/", response["Location"])

@@ -1,5 +1,10 @@
+import csv
+import re
+
 from django.contrib import admin
+from django.http import HttpResponse
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import format_html
 
 from .models import (
@@ -13,6 +18,17 @@ from .models import (
     Review,
     Service,
 )
+
+CSV_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+PHONE_LIKE = re.compile(r"^\+[\d\s()\-]+$")
+
+
+def csv_safe(value) -> str:
+    """Защита от CSV-инъекции: ячейка, начинающаяся с = + - @, в Excel станет формулой."""
+    text = "" if value is None else str(value)
+    if text.startswith(CSV_FORMULA_PREFIXES) and not PHONE_LIKE.match(text):
+        return "'" + text
+    return text
 
 
 @admin.register(Service)
@@ -103,7 +119,7 @@ class OrderAdmin(admin.ModelAdmin):
     )
     exclude = ("reference_file",)
     inlines = [OrderDeliveryInline, OrderMessageInline, OrderEventInline]
-    actions = ["mark_in_progress", "mark_done"]
+    actions = ["mark_in_progress", "mark_done", "export_csv"]
 
     @admin.display(description="Контакты")
     def contact(self, obj):
@@ -133,6 +149,52 @@ class OrderAdmin(admin.ModelAdmin):
         for order in queryset:
             order.status = Order.Status.IN_PROGRESS
             order.save()
+
+    @admin.action(description="Выгрузить выбранные заказы в CSV")
+    def export_csv(self, request, queryset):
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = 'attachment; filename="orders.csv"'
+        response.write("\ufeff")  # BOM: Excel сразу открывает кириллицу правильно
+        writer = csv.writer(
+            response, delimiter=";"
+        )  # «;» — разделитель по умолчанию в русском Excel
+        writer.writerow(
+            [
+                "№",
+                "Создан",
+                "Статус",
+                "Источник",
+                "Услуга",
+                "Имя",
+                "Email",
+                "Телефон",
+                "Telegram (ник)",
+                "Бюджет",
+                "Срок",
+                "Правок",
+                "Описание",
+            ]
+        )
+        for order in queryset.select_related("service").order_by("pk"):
+            writer.writerow(
+                csv_safe(value)
+                for value in (
+                    order.pk,
+                    timezone.localtime(order.created_at).strftime("%d.%m.%Y %H:%M"),
+                    order.get_status_display(),
+                    order.get_source_display(),
+                    order.service.title if order.service else "",
+                    order.name,
+                    order.email,
+                    order.phone,
+                    order.telegram_username,  # без «@»: ячейка с «@» в начале считалась бы формулой
+                    order.budget,
+                    order.deadline.strftime("%d.%m.%Y") if order.deadline else "",
+                    order.revisions_used,
+                    order.description,
+                )
+            )
+        return response
 
     @admin.action(description="Отметить выполненными")
     def mark_done(self, request, queryset):

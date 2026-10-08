@@ -1,0 +1,21 @@
+.studio-dashboard { margin-bottom: 2rem; }
+.studio-dashboard__cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.studio-dashboard__card { background: var(--darkened-bg, #f8f8f8); border: 1px solid var(--hairline-color, #e0e0e0); border-radius: 8px; padding: 12px 14px; display: grid; gap: 4px; }
+.studio-dashboard__card span { font-size: 12px; color: var(--body-quiet-color, #666); }
+.studio-dashboard__card strong { font-size: 26px; line-height: 1.1; color: var(--body-fg, #333); }
+.studio-dashboard__card--alert { border-color: #d9534f; }
+.studio-dashboard__card--alert strong { color: #d9534f; }
+.studio-dashboard__row { display: grid; grid-template-columns: 2fr 1.2fr 1.2fr; gap: 16px; margin-bottom: 16px; }
+.studio-dashboard__panel { background: var(--darkened-bg, #f8f8f8); border: 1px solid var(--hairline-color, #e0e0e0); border-radius: 8px; padding: 14px 16px; }
+.studio-dashboard__panel h2 { margin: 0 0 10px; padding: 0; font-size: 14px; background: none; color: var(--body-quiet-color, #666); text-transform: uppercase; letter-spacing: .04em; }
+.studio-dashboard__panel h2:not(:first-child) { margin-top: 16px; }
+.studio-dashboard__bars { display: flex; align-items: flex-end; gap: 10px; height: 150px; }
+.studio-dashboard__bar { flex: 1; height: 100%; display: grid; grid-template-rows: auto 1fr auto; justify-items: center; gap: 4px; }
+.studio-dashboard__bar-fill { align-self: end; width: 70%; min-height: 3px; background: var(--primary, #417690); border-radius: 4px 4px 0 0; }
+.studio-dashboard__bar-count, .studio-dashboard__bar-label { font-size: 12px; color: var(--body-quiet-color, #666); }
+.studio-dashboard__list { list-style: none; margin: 0; padding: 0; }
+.studio-dashboard__list li { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid var(--hairline-color, #e0e0e0); }
+.studio-dashboard__list li:last-child { border-bottom: 0; }
+.studio-dashboard__table { width: 100%; }
+.studio-dashboard__table td { padding: 6px 8px; }
+@media (max-width: 900px) { .studio-dashboard__row { grid-template-columns: 1fr; } }
