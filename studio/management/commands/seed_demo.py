@@ -1,3 +1,7 @@
+from pathlib import Path
+
+from django.conf import settings
+from django.core.files import File
 from django.core.management.base import BaseCommand
 
 from studio.models import PortfolioItem, Review, Service
@@ -41,17 +45,12 @@ SERVICES = [
 ]
 
 WORKS = [
-    ("Робот-курьер", "robot-courier", PortfolioItem.Category.CHARACTER, "Blender"),
-    ("Кофейная кружка", "coffee-mug", PortfolioItem.Category.PRODUCT, "Blender, Substance Painter"),
-    ("Лофт-гостиная", "loft-living-room", PortfolioItem.Category.INTERIOR, "3ds Max, Corona"),
-    (
-        "Набор фэнтези-оружия",
-        "fantasy-weapons",
-        PortfolioItem.Category.GAME_ASSET,
-        "Blender, ZBrush",
-    ),
-    ("Небольшой коттедж", "small-cottage", PortfolioItem.Category.ARCHITECTURE, "SketchUp, Lumion"),
-    ("Подставка для телефона", "phone-stand", PortfolioItem.Category.PRINT, "Fusion 360"),
+    ("Робот-курьер", "robot-courier", PortfolioItem.Category.CHARACTER),
+    ("Кофейная кружка", "coffee-mug", PortfolioItem.Category.PRODUCT),
+    ("Лофт-гостиная", "loft-living-room", PortfolioItem.Category.INTERIOR),
+    ("Набор фэнтези-оружия", "fantasy-weapons", PortfolioItem.Category.GAME_ASSET),
+    ("Небольшой коттедж", "small-cottage", PortfolioItem.Category.ARCHITECTURE),
+    ("Подставка для телефона", "phone-stand", PortfolioItem.Category.PRINT),
 ]
 
 REVIEWS = [
@@ -72,13 +71,35 @@ REVIEWS = [
     ),
 ]
 
+ASSETS = Path(settings.BASE_DIR) / "demo_assets"
+
+# Услуге подбираем превью из подходящей работы портфолио.
+SERVICE_PREVIEWS = {
+    "character-modeling": "robot-courier",
+    "product-visualization": "coffee-mug",
+    "interior-architecture": "loft-living-room",
+    "game-assets": "fantasy-weapons",
+    "3d-printing": "phone-stand",
+}
+
+
+def attach(instance, field: str, path: Path) -> bool:
+    """Прикрепляет файл, только если поле пустое (повторный запуск ничего не дублирует)."""
+    if getattr(instance, field) or not path.exists():
+        return False
+    with path.open("rb") as f:
+        getattr(instance, field).save(path.name, File(f), save=True)
+    return True
+
 
 class Command(BaseCommand):
-    help = "Заполняет сайт демо-данными (идемпотентно)."
+    help = (
+        "Заполняет сайт демо-данными (повторный запуск безопасен; тексты демо-работ обновляются)."
+    )
 
     def handle(self, *args, **options):
         for order, (title, slug, short, price, duration) in enumerate(SERVICES, start=1):
-            Service.objects.get_or_create(
+            service, _ = Service.objects.get_or_create(
                 slug=slug,
                 defaults={
                     "title": title,
@@ -90,17 +111,22 @@ class Command(BaseCommand):
                     "sort_order": order * 10,
                 },
             )
-        for title, slug, category, software in WORKS:
-            PortfolioItem.objects.get_or_create(
+            preview = SERVICE_PREVIEWS[slug]
+            attach(service, "image", ASSETS / "previews" / f"{preview}.png")
+        for title, slug, category in WORKS:
+            work, _ = PortfolioItem.objects.update_or_create(
                 slug=slug,
                 defaults={
                     "title": title,
                     "category": category,
-                    "software": software,
-                    "description": "Демо-работа. Замените превью и загрузите .glb в админке — "
-                    "на странице появится интерактивный 3D-просмотр.",
+                    "software": "Python, glTF 2.0",
+                    "description": "Демо-модель, собранная из примитивов скриптом "
+                    "demo_assets/generate_models.py. Её можно вращать мышью или пальцем. "
+                    "Свои работы загружаются в админке: превью и файл .glb.",
                 },
             )
+            attach(work, "image", ASSETS / "previews" / f"{slug}.png")
+            attach(work, "model_file", ASSETS / "models" / f"{slug}.glb")
         for author, text, rating in REVIEWS:
             Review.objects.get_or_create(author=author, defaults={"text": text, "rating": rating})
         self.stdout.write(self.style.SUCCESS("Демо-данные созданы."))

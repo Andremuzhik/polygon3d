@@ -7,7 +7,7 @@
   <div class="card__body">
     <h3>{{ item.title }}</h3>
     <p class="muted">{{ item.short_description }}</p>
-    <p class="price">{% if item.price_from %}от {{ item.price_from }} ₽{% else %}по договорённости{% endif %}</p>
+    <p class="price">{% if item.price_from %}от {{ item.price_from|floatformat:"0g" }} ₽{% else %}по договорённости{% endif %}</p>
   </div>
 </a>
 {% else %}

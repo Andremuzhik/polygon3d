@@ -12,7 +12,7 @@
     </div>
     <aside class="panel">
       {% if service.image %}<img class="panel__img" src="{{ service.image.url }}" alt="{{ service.title }}">{% endif %}
-      <p class="price price--big">{% if service.price_from %}от {{ service.price_from }} ₽{% else %}по договорённости{% endif %}</p>
+      <p class="price price--big">{% if service.price_from %}от {{ service.price_from|floatformat:"0g" }} ₽{% else %}по договорённости{% endif %}</p>
       {% if service.duration %}<p class="muted">Срок: {{ service.duration }}</p>{% endif %}
       <a class="btn btn--block" href="{% url 'order' %}?service={{ service.slug }}">Заказать</a>
     </aside>

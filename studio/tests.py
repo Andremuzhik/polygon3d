@@ -1,5 +1,8 @@
+import tempfile
+
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
@@ -215,3 +218,16 @@ class CabinetTests(TestCase):
         )
         self.assertRedirects(response, reverse("cabinet"))
         self.assertTrue(User.objects.filter(username="newbie").exists())
+
+
+class SeedDemoTests(TestCase):
+    def test_seed_attaches_assets_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as media, override_settings(MEDIA_ROOT=media):
+            call_command("seed_demo", verbosity=0)
+            call_command("seed_demo", verbosity=0)
+
+            works = PortfolioItem.objects.all()
+            self.assertEqual(works.count(), 6)
+            self.assertTrue(all(w.image and w.model_file for w in works))
+            self.assertTrue(all(s.image for s in Service.objects.all()))
+            self.assertEqual(Review.objects.count(), 3)

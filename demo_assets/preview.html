@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Рендер превью</title>
+<script type="module" src="https://unpkg.com/@google/model-viewer@4/dist/model-viewer.min.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { background: radial-gradient(circle at 30% 20%, #2a3870 0%, #141a30 45%, #0b0d12 100%); }
+  model-viewer { width: 100vw; height: 100vh; --poster-color: transparent; }
+</style>
+<model-viewer id="mv" camera-orbit="35deg 72deg auto" field-of-view="28deg" exposure="1.15"
+  shadow-intensity="1.2" shadow-softness="0.8" environment-image="neutral" interaction-prompt="none"></model-viewer>
+<script>
+  const mv = document.getElementById("mv");
+  mv.src = "models/" + new URLSearchParams(location.search).get("m") + ".glb";
+</script>
