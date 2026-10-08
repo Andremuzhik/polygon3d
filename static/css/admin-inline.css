@@ -1,0 +1,4 @@
+/* В табличных inline Django дублирует текст объекта над строкой (из __str__): скрываем. */
+.inline-group .tabular td.original p {
+  display: none;
+}

@@ -58,7 +58,7 @@ class PortfolioItem(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
-        verbose_name = "работа"
+        verbose_name = "элемент портфолио"
         verbose_name_plural = "портфолио"
 
     def __str__(self):

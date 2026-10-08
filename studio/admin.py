@@ -38,6 +38,9 @@ class OrderMessageInline(admin.TabularInline):
     fields = ("sender", "text", "created_at")
     readonly_fields = ("sender", "created_at")
 
+    class Media:
+        css = {"all": ("css/admin-inline.css",)}
+
     def has_change_permission(self, request, obj=None):
         return False
 
