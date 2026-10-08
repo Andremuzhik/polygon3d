@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Отзывы — {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container">
+    <h1>Отзывы клиентов</h1>
+    <div class="grid">
+      {% for r in reviews %}
+        <blockquote class="review"><div class="stars">{{ r.stars }}</div><p>{{ r.text }}</p><footer>— {{ r.author }}</footer></blockquote>
+      {% empty %}<p class="muted">Отзывов пока нет.</p>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

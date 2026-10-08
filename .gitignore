@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+data/
+media/
+staticfiles/
+.idea/
+.gigaide/
+*.iml
+.ruff_cache/
+.DS_Store

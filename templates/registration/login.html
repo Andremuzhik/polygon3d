@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Вход — {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container narrow narrow--sm">
+    <h1>Вход</h1>
+    <form method="post" class="form" novalidate>
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      {% for field in form %}
+        <div class="field {% if field.errors %}field--error{% endif %}">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}
+        </div>
+      {% endfor %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="btn btn--block" type="submit">Войти</button>
+    </form>
+    <p class="muted">Нет аккаунта? <a href="{% url 'register' %}">Зарегистрироваться</a></p>
+  </div>
+</section>
+{% endblock %}

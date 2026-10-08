@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Контакты — {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container narrow">
+    <h1>Контакты</h1>
+    <div class="panel">
+      {% if CONTACT_EMAIL %}<p>✉️ <a href="mailto:{{ CONTACT_EMAIL }}">{{ CONTACT_EMAIL }}</a></p>{% endif %}
+      {% if CONTACT_PHONE %}<p>📞 {{ CONTACT_PHONE }}</p>{% endif %}
+      {% if BOT_URL %}<p>💬 Telegram-бот: <a href="{{ BOT_URL }}" target="_blank" rel="noopener">@{{ BOT_USERNAME }}</a> — можно оформить заказ и общаться с менеджером.</p>{% endif %}
+      <p><a class="btn" href="{% url 'order' %}">Оставить заявку на сайте</a></p>
+    </div>
+  </div>
+</section>
+{% endblock %}

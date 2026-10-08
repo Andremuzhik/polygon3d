@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Заявка принята — {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container narrow">
+    <div class="panel panel--center">
+      <div class="big-icon">✓</div>
+      <h1>Заявка №{{ order.pk }} принята</h1>
+      <p class="lead">Менеджер свяжется с вами в ближайшее время.</p>
+      {% if order_bot_link %}
+        <p>Хотите получать статус заказа и общаться с менеджером в Telegram?</p>
+        <p><a class="btn" href="{{ order_bot_link }}" target="_blank" rel="noopener">Подключить Telegram</a></p>
+      {% endif %}
+      {% if user.is_authenticated and order.user_id == user.pk %}
+        <p><a href="{% url 'cabinet-order' order.pk %}">Открыть заказ в кабинете →</a></p>
+      {% elif not user.is_authenticated %}
+        <p class="muted"><a href="{% url 'register' %}">Создайте аккаунт</a>, чтобы следить за заказами в личном кабинете.</p>
+      {% endif %}
+      <p><a href="{% url 'home' %}">На главную</a></p>
+    </div>
+  </div>
+</section>
+{% endblock %}

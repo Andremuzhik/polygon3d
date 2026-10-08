@@ -1,0 +1,13 @@
+.git
+.github
+.idea
+.gigaide
+.venv
+__pycache__
+*.pyc
+*.iml
+.env
+data
+media
+staticfiles
+deploy

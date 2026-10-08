@@ -1,0 +1,24 @@
+{# Включаемые карточки: {% include "studio/_cards.html" with kind="work" item=w %} #}
+{% if kind == "service" %}
+<a class="card" href="{{ item.get_absolute_url }}">
+  <div class="card__media">
+    {% if item.image %}<img src="{{ item.image.url }}" alt="{{ item.title }}" loading="lazy">{% else %}<div class="placeholder">◆</div>{% endif %}
+  </div>
+  <div class="card__body">
+    <h3>{{ item.title }}</h3>
+    <p class="muted">{{ item.short_description }}</p>
+    <p class="price">{% if item.price_from %}от {{ item.price_from }} ₽{% else %}по договорённости{% endif %}</p>
+  </div>
+</a>
+{% else %}
+<a class="card" href="{{ item.get_absolute_url }}">
+  <div class="card__media">
+    {% if item.image %}<img src="{{ item.image.url }}" alt="{{ item.title }}" loading="lazy">{% else %}<div class="placeholder">◆</div>{% endif %}
+    {% if item.model_file %}<span class="badge">3D</span>{% endif %}
+  </div>
+  <div class="card__body">
+    <h3>{{ item.title }}</h3>
+    <p class="muted">{{ item.get_category_display }}</p>
+  </div>
+</a>
+{% endif %}

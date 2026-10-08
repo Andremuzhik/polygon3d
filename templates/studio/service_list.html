@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Услуги — {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container">
+    <h1>Услуги</h1>
+    <p class="lead">Цены ориентировочные — точную стоимость назовём после уточнения задачи.</p>
+    <div class="grid">
+      {% for s in services %}{% include "studio/_cards.html" with kind="service" item=s %}
+      {% empty %}<p class="muted">Услуги скоро появятся.</p>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

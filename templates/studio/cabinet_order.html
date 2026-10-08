@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Заказ №{{ order.pk }} — {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container detail">
+    <div>
+      <p class="crumbs"><a href="{% url 'cabinet' %}">← Мои заказы</a></p>
+      <h1>Заказ №{{ order.pk }}</h1>
+      <p><span class="status status--{{ order.status }}">{{ order.get_status_display }}</span>
+         <span class="muted"> · {{ order.service|default:"Индивидуальный заказ" }} · {{ order.created_at|date:"d.m.Y H:i" }}</span></p>
+      <div class="prose">{{ order.description|linebreaks }}</div>
+      {% if order.reference_file %}<p><a href="{% url 'order-file' order.pk %}">📎 Приложенный файл</a></p>{% endif %}
+
+      <h2>Переписка с менеджером</h2>
+      <div class="chat">
+        {% for m in chat %}
+          <div class="msg msg--{{ m.sender }}"><div class="msg__meta">{{ m.get_sender_display }} · {{ m.created_at|date:"d.m H:i" }}</div>{{ m.text|linebreaksbr }}</div>
+        {% empty %}<p class="muted">Сообщений пока нет.</p>{% endfor %}
+      </div>
+      <form method="post" class="form">
+        {% csrf_token %}
+        {{ form.text }}{{ form.text.errors }}
+        <button class="btn" type="submit">Отправить</button>
+      </form>
+    </div>
+    <aside class="panel">
+      <h4>Детали</h4>
+      <p class="muted">Бюджет: {{ order.budget|default:"—" }}<br>Срок: {{ order.deadline|date:"d.m.Y"|default:"—" }}</p>
+    </aside>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Личный кабинет — {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container detail">
+    <div>
+      <h1>Мои заказы</h1>
+      {% for o in orders %}
+        <a class="row" href="{% url 'cabinet-order' o.pk %}">
+          <div><b>Заказ №{{ o.pk }}</b> · {{ o.service|default:"Индивидуальный" }}<br><span class="muted">{{ o.created_at|date:"d.m.Y" }}</span></div>
+          <span class="status status--{{ o.status }}">{{ o.get_status_display }}</span>
+        </a>
+      {% empty %}
+        <p class="muted">Заказов пока нет.</p>
+      {% endfor %}
+      <p><a class="btn" href="{% url 'order' %}">Новый заказ</a></p>
+    </div>
+    <aside class="panel">
+      <h3>{{ user.username }}</h3>
+      <p class="muted">{{ user.email }}</p>
+      <h4>Telegram</h4>
+      {% if profile.telegram_id %}
+        <p>✅ Привязан{% if profile.telegram_username %}: @{{ profile.telegram_username }}{% endif %}</p>
+        <p class="muted">Уведомления о статусе и ответах менеджера приходят в бота.</p>
+        <form method="post" action="{% url 'telegram-unlink' %}">{% csrf_token %}<button class="btn btn--ghost btn--small">Отвязать</button></form>
+      {% elif profile_bot_link %}
+        <p class="muted">Привяжите Telegram, чтобы получать уведомления и писать менеджеру из мессенджера.</p>
+        <a class="btn btn--block" href="{{ profile_bot_link }}" target="_blank" rel="noopener">Привязать Telegram</a>
+      {% else %}
+        <p class="muted">Бот пока не подключён.</p>
+      {% endif %}
+      <form method="post" action="{% url 'logout' %}" class="mt">{% csrf_token %}<button class="btn btn--ghost btn--small">Выйти</button></form>
+    </aside>
+  </div>
+</section>
+{% endblock %}

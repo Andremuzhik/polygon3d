@@ -1,0 +1,14 @@
+{$DOMAIN} {
+	encode zstd gzip
+
+	# Раздаём только публичные медиа (услуги, портфолио).
+	# Файлы клиентов (media/orders/) отдаются Django только владельцу и менеджерам.
+	handle /media/public/* {
+		root * /srv
+		file_server
+	}
+
+	handle {
+		reverse_proxy web:8000
+	}
+}

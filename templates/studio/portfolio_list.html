@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Портфолио — {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container">
+    <h1>Портфолио</h1>
+    <div class="filters">
+      <a class="chip {% if not current_category %}chip--active{% endif %}" href="{% url 'portfolio' %}">Все</a>
+      {% for value, label in categories %}
+        <a class="chip {% if current_category == value %}chip--active{% endif %}" href="?category={{ value }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+    <div class="grid">
+      {% for w in page %}{% include "studio/_cards.html" with kind="work" item=w %}
+      {% empty %}<p class="muted">В этой категории пока нет работ.</p>{% endfor %}
+    </div>
+    {% if page.has_other_pages %}
+    <div class="pager">
+      {% if page.has_previous %}<a href="?{% if current_category %}category={{ current_category }}&{% endif %}page={{ page.previous_page_number }}">← Назад</a>{% endif %}
+      <span>{{ page.number }} / {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}<a href="?{% if current_category %}category={{ current_category }}&{% endif %}page={{ page.next_page_number }}">Вперёд →</a>{% endif %}
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

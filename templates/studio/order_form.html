@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Заказать 3D-модель — {{ SITE_NAME }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container narrow">
+    <h1>Заявка на 3D-моделирование</h1>
+    <p class="lead">Опишите задачу — менеджер свяжется с вами, уточнит детали и назовёт стоимость.</p>
+    <form method="post" enctype="multipart/form-data" class="form" novalidate>
+      {% csrf_token %}
+      {{ form.non_field_errors }}
+      <div class="hp" aria-hidden="true">{{ form.website }}</div>
+      {% for field in form.visible_fields %}
+        {% if field.name != "website" %}
+        <div class="field {% if field.errors %}field--error{% endif %}">
+          <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+          {{ field }}
+          {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+          {{ field.errors }}
+        </div>
+        {% endif %}
+      {% endfor %}
+      <button class="btn" type="submit">Отправить заявку</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

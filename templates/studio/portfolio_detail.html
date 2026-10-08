@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ work.title }} — {{ SITE_NAME }}{% endblock %}
+{% block head %}
+  {% if work.model_file %}<script type="module" src="https://unpkg.com/@google/model-viewer@4/dist/model-viewer.min.js"></script>{% endif %}
+{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container">
+    <p class="crumbs"><a href="{% url 'portfolio' %}">← Портфолио</a></p>
+    <h1>{{ work.title }}</h1>
+    <p class="muted">{{ work.get_category_display }}{% if work.software %} · {{ work.software }}{% endif %}</p>
+
+    <div class="viewer">
+      {% if work.model_file %}
+        <model-viewer src="{{ work.model_file.url }}" {% if work.image %}poster="{{ work.image.url }}"{% endif %}
+          alt="3D-модель: {{ work.title }}" camera-controls auto-rotate shadow-intensity="1" touch-action="pan-y"></model-viewer>
+        <p class="muted viewer__hint">Потяните, чтобы повернуть · колесо мыши — масштаб</p>
+      {% elif work.image %}
+        <img src="{{ work.image.url }}" alt="{{ work.title }}">
+      {% else %}
+        <div class="placeholder placeholder--big">◆</div>
+      {% endif %}
+    </div>
+
+    {% if work.description %}<div class="prose">{{ work.description|linebreaks }}</div>{% endif %}
+    <p><a class="btn" href="{% url 'order' %}">Хочу похожую работу</a></p>
+
+    {% if related %}
+    <h2>Ещё в этой категории</h2>
+    <div class="grid">{% for w in related %}{% include "studio/_cards.html" with kind="work" item=w %}{% endfor %}</div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

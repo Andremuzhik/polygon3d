@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div class="container hero__inner">
+    <div class="hero__text">
+      <p class="eyebrow">3D-студия</p>
+      <h1>3D-модели, которые <span class="accent">оживают</span> в вашем проекте</h1>
+      <p class="lead">Персонажи, предметная визуализация, интерьеры и игровые ассеты. Работаем по ТЗ, показываем промежуточные результаты и держим связь в Telegram.</p>
+      <div class="actions">
+        <a class="btn" href="{% url 'order' %}">Рассчитать заказ</a>
+        <a class="btn btn--ghost" href="{% url 'portfolio' %}">Смотреть работы</a>
+      </div>
+    </div>
+    <div class="hero__scene" aria-hidden="true">
+      <div class="cube">
+        <span class="face f1"></span><span class="face f2"></span><span class="face f3"></span>
+        <span class="face f4"></span><span class="face f5"></span><span class="face f6"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container stats">
+    <div><strong>120+</strong><span>выполненных проектов</span></div>
+    <div><strong>3–7 дней</strong><span>средний срок</span></div>
+    <div><strong>2 правки</strong><span>включены в стоимость</span></div>
+    <div><strong>.glb .fbx .obj .stl</strong><span>форматы сдачи</span></div>
+  </div>
+</section>
+
+{% if services %}
+<section class="section">
+  <div class="container">
+    <div class="section__head"><h2>Услуги</h2><a href="{% url 'services' %}">Все услуги →</a></div>
+    <div class="grid">{% for s in services %}{% include "studio/_cards.html" with kind="service" item=s %}{% endfor %}</div>
+  </div>
+</section>
+{% endif %}
+
+{% if works %}
+<section class="section section--alt">
+  <div class="container">
+    <div class="section__head"><h2>Свежие работы</h2><a href="{% url 'portfolio' %}">Всё портфолио →</a></div>
+    <div class="grid">{% for w in works %}{% include "studio/_cards.html" with kind="work" item=w %}{% endfor %}</div>
+  </div>
+</section>
+{% endif %}
+
+<section class="section">
+  <div class="container">
+    <h2>Как мы работаем</h2>
+    <ol class="steps">
+      <li><b>Заявка</b><span>Через сайт или Telegram-бота — опишите задачу и приложите референсы.</span></li>
+      <li><b>Оценка</b><span>Менеджер уточняет детали, называет срок и стоимость.</span></li>
+      <li><b>Моделирование</b><span>Показываем промежуточные рендеры, вносим правки.</span></li>
+      <li><b>Сдача</b><span>Передаём файлы в нужных форматах и рендеры.</span></li>
+    </ol>
+  </div>
+</section>
+
+{% if reviews %}
+<section class="section section--alt">
+  <div class="container">
+    <div class="section__head"><h2>Отзывы</h2><a href="{% url 'reviews' %}">Все отзывы →</a></div>
+    <div class="grid">{% for r in reviews %}
+      <blockquote class="review"><div class="stars">{{ r.stars }}</div><p>{{ r.text }}</p><footer>— {{ r.author }}</footer></blockquote>
+    {% endfor %}</div>
+  </div>
+</section>
+{% endif %}
+
+<section class="section">
+  <div class="container cta">
+    <h2>Есть задача? Расскажите — прикинем срок и цену</h2>
+    <div class="actions">
+      <a class="btn" href="{% url 'order' %}">Оставить заявку</a>
+      {% if BOT_URL %}<a class="btn btn--ghost" href="{{ BOT_URL }}" target="_blank" rel="noopener">Заказать в Telegram</a>{% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}
