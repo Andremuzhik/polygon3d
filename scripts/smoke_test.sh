@@ -13,8 +13,10 @@ FAILED=0
 
 cleanup() {
     if [ "$FAILED" -ne 0 ]; then
-        echo "--- логи web ---"
-        docker logs "$WEB" 2>&1 | tail -40 || true
+        for name in "$DB" "$WEB"; do
+            echo "--- логи $name ---"
+            docker logs "$name" 2>&1 | tail -40 || true
+        done
     fi
     docker rm -f "$WEB" "$DB" >/dev/null 2>&1 || true
     docker network rm "$NET" >/dev/null 2>&1 || true
@@ -42,11 +44,12 @@ docker network create "$NET" >/dev/null
 docker run -d --name "$DB" --network "$NET" \
     -e POSTGRES_DB=studio -e POSTGRES_USER=studio -e POSTGRES_PASSWORD=studio \
     postgres:17-alpine >/dev/null
-for _ in $(seq 1 30); do
+# Первый старт PostgreSQL включает initdb; на загруженной машине это бывает дольше 30 секунд.
+for _ in $(seq 1 90); do
     docker exec "$DB" pg_isready -U studio -d studio >/dev/null 2>&1 && break
     sleep 1
 done
-docker exec "$DB" pg_isready -U studio -d studio >/dev/null 2>&1 || fail "PostgreSQL не поднялся"
+docker exec "$DB" pg_isready -U studio -d studio >/dev/null 2>&1 || fail "PostgreSQL не поднялся за 90 секунд"
 
 echo "==> Приложение (gunicorn, DEBUG=0, миграции при старте)"
 docker run -d --name "$WEB" --network "$NET" -p "127.0.0.1:$PORT:8000" \
