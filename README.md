@@ -173,11 +173,5 @@ docker compose -f docker-compose.prod.yml exec web python manage.py seed_demo
 - `bot`: тот же образ, команда `python manage.py runbot`
 - `db`: PostgreSQL с томом `pgdata`
 
-## Что можно улучшить дальше
-- Ограничение частоты заявок (django-ratelimit), капча
-- Бэкапы PostgreSQL по расписанию
-- Webhook вместо long polling для бота, Sentry для ошибок
-- Онлайн-оплата (ЮKassa / Stripe) и счета по заказам
-
 ## Лицензия
 [MIT](LICENSE)
