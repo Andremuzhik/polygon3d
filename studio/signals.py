@@ -3,7 +3,7 @@ from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
 from . import notifications
-from .models import Order, OrderMessage, Profile
+from .models import Order, OrderDelivery, OrderMessage, Profile
 
 
 @receiver(post_save, sender=get_user_model())
@@ -33,3 +33,9 @@ def order_saved(sender, instance, created, **kwargs):
 def message_saved(sender, instance, created, **kwargs):
     if created:
         notifications.message_created(instance)
+
+
+@receiver(post_save, sender=OrderDelivery)
+def delivery_saved(sender, instance, created, **kwargs):
+    if created:
+        notifications.delivery_created(instance)

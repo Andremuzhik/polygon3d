@@ -6,6 +6,21 @@ from django.utils.deconstruct import deconstructible
 
 REFERENCE_EXTENSIONS = ["jpg", "jpeg", "png", "pdf", "zip", "rar", "7z", "obj", "fbx", "stl", "glb"]
 MODEL_EXTENSIONS = ["glb", "gltf"]
+DELIVERY_EXTENSIONS = [
+    "jpg",
+    "jpeg",
+    "png",
+    "pdf",
+    "zip",
+    "rar",
+    "7z",
+    "glb",
+    "gltf",
+    "fbx",
+    "obj",
+    "stl",
+    "blend",
+]
 
 # Начало файла для форматов с сигнатурой. У obj, stl и ascii-fbx сигнатуры нет, для них — чёрный список ниже.
 SIGNATURES: dict[str, tuple[bytes, ...]] = {
@@ -18,6 +33,7 @@ SIGNATURES: dict[str, tuple[bytes, ...]] = {
     "7z": (b"7z\xbc\xaf\x27\x1c",),
     "glb": (b"glTF",),
     "fbx": (b"Kaydara FBX Binary", b"; FBX"),
+    "blend": (b"BLENDER",),
 }
 # Исполняемые файлы и веб-контент, которым нечего делать в 3D-референсах.
 FORBIDDEN_PREFIXES = (
@@ -77,3 +93,8 @@ validate_reference = [
     validate_file_content,
 ]
 validate_model = [FileExtensionValidator(MODEL_EXTENSIONS), MaxFileSize(30), validate_file_content]
+validate_delivery = [
+    FileExtensionValidator(DELIVERY_EXTENSIONS),
+    MaxFileSize(40),  # лимит Telegram на отправку файла ботом — 50 МБ
+    validate_file_content,
+]

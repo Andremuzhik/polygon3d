@@ -78,3 +78,16 @@ class RegisterForm(UserCreationForm):
         if User.objects.filter(email__iexact=email).exists():
             raise forms.ValidationError("Пользователь с таким email уже есть.")
         return email
+
+
+class RevisionForm(forms.Form):
+    text = forms.CharField(
+        label="",
+        max_length=2000,
+        widget=forms.Textarea(
+            attrs={
+                "rows": 3,
+                "placeholder": "Что нужно изменить? Опишите правки как можно конкретнее.",
+            }
+        ),
+    )

@@ -8,8 +8,17 @@ from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
-from .forms import MessageForm, OrderForm, RegisterForm
-from .models import Order, OrderMessage, PortfolioItem, Review, Service
+from . import services
+from .forms import MessageForm, OrderForm, RegisterForm, RevisionForm
+from .models import (
+    REVISIONS_INCLUDED,
+    Order,
+    OrderDelivery,
+    OrderMessage,
+    PortfolioItem,
+    Review,
+    Service,
+)
 from .throttle import throttle
 
 
@@ -169,7 +178,15 @@ def cabinet_order(request, pk):
     return render(
         request,
         "studio/cabinet_order.html",
-        {"order": order, "chat": order.messages.all(), "form": form},
+        {
+            "order": order,
+            "chat": order.messages.all(),
+            "form": form,
+            "deliveries": order.deliveries.all(),
+            "can_review": order.status == Order.Status.REVIEW,
+            "revision_form": RevisionForm(),
+            "revisions_included": REVISIONS_INCLUDED,
+        },
     )
 
 
@@ -191,3 +208,39 @@ def order_reference(request, pk):
     if not (request.user.is_staff or order.user_id == request.user.pk) or not order.reference_file:
         raise Http404
     return FileResponse(order.reference_file.open("rb"), as_attachment=True)
+
+
+@login_required
+@require_POST
+@throttle("review", limit=20, window=3600)
+def order_accept(request, pk):
+    order = get_object_or_404(Order, pk=pk, user=request.user)
+    if services.accept_order(order):
+        messages.success(request, "Спасибо! Работа принята, заказ выполнен.")
+    else:
+        messages.error(request, "Принять можно только заказ со статусом «На согласовании».")
+    return redirect("cabinet-order", pk=order.pk)
+
+
+@login_required
+@require_POST
+@throttle("review", limit=20, window=3600)
+def order_request_revision(request, pk):
+    order = get_object_or_404(Order, pk=pk, user=request.user)
+    form = RevisionForm(request.POST)
+    if not form.is_valid():
+        messages.error(request, "Опишите, что нужно изменить.")
+    elif services.request_revision(order, form.cleaned_data["text"]) is None:
+        messages.error(request, "Запросить правки можно только у заказа «На согласовании».")
+    else:
+        messages.success(request, "Правки отправлены менеджеру, заказ снова в работе.")
+    return redirect("cabinet-order", pk=order.pk)
+
+
+@login_required
+def delivery_download(request, pk):
+    """Результат работы виден только владельцу заказа и менеджерам."""
+    delivery = get_object_or_404(OrderDelivery.objects.select_related("order"), pk=pk)
+    if not (request.user.is_staff or delivery.order.user_id == request.user.pk):
+        raise Http404
+    return FileResponse(delivery.file.open("rb"), as_attachment=True, filename=delivery.filename)

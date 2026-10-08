@@ -72,12 +72,30 @@ def orders_kb(orders: list[dict]) -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
-def client_order_actions(order_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="✉️ Написать менеджеру", callback_data=f"chat:{order_id}")]
-        ]
+def client_order_actions(
+    order_id: int, *, deliveries: int = 0, in_review: bool = False
+) -> InlineKeyboardMarkup:
+    rows = []
+    if in_review:
+        rows.append(
+            [
+                InlineKeyboardButton(text="✅ Принять работу", callback_data=f"dacc:{order_id}"),
+                InlineKeyboardButton(text="✏️ Правки", callback_data=f"drev:{order_id}"),
+            ]
+        )
+    if deliveries:
+        rows.append(
+            [InlineKeyboardButton(text="📎 Показать файлы", callback_data=f"dfiles:{order_id}")]
+        )
+    rows.append(
+        [InlineKeyboardButton(text="✉️ Написать менеджеру", callback_data=f"chat:{order_id}")]
     )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def delivery_actions(order_id: int) -> InlineKeyboardMarkup:
+    """Под уведомлением «результат готов»: файлы, принять, правки."""
+    return client_order_actions(order_id, deliveries=1, in_review=True)
 
 
 def admin_order_actions(order_id: int) -> InlineKeyboardMarkup:

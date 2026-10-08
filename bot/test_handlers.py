@@ -12,12 +12,13 @@ from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.base import BaseSession
 from aiogram.enums import ParseMode
-from aiogram.methods import AnswerCallbackQuery, GetMe, SendMessage, SendPhoto
+from aiogram.methods import AnswerCallbackQuery, GetMe, SendDocument, SendMessage, SendPhoto
 from aiogram.types import Chat, Message, Update, User
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 
-from studio.models import Notification, Order, OrderMessage, Profile, Service
+from studio.models import Notification, Order, OrderDelivery, OrderMessage, Profile, Service
 
 from . import keyboards as kb
 from .main import build_dispatcher
@@ -55,7 +56,7 @@ class FakeSession(BaseSession):
         self.calls.append(method)
         if isinstance(method, GetMe):
             return User(id=1, is_bot=True, first_name="Studio", username="studio_test_bot")
-        if isinstance(method, SendMessage | SendPhoto):
+        if isinstance(method, SendMessage | SendPhoto | SendDocument):
             return Message(
                 message_id=len(self.calls),
                 date=int(time.time()),
@@ -486,3 +487,127 @@ class BotRateLimitTests(HandlerTestCase):
         calls = await dialog.say(kb.BTN_SKIP)
 
         self.assertIn("принят", texts(calls))
+
+
+class DeliveryDialogTests(HandlerTestCase):
+    def setUp(self):
+        super().setUp()
+        self._media = tempfile.TemporaryDirectory()
+        self.addCleanup(self._media.cleanup)
+        override = override_settings(MEDIA_ROOT=self._media.name)
+        override.enable()
+        self.addCleanup(override.disable)
+
+    async def review_order(self, dialog, with_file=True):
+        order = await Order.objects.acreate(
+            name="A", description="x", telegram_id=dialog.id, status=Order.Status.REVIEW
+        )
+        if with_file:
+            await OrderDelivery.objects.acreate(
+                order=order,
+                title="Рендеры v1",
+                file=SimpleUploadedFile("render.png", b"\x89PNG\r\n\x1a\n" + b"\0" * 16),
+            )
+            await Order.objects.filter(pk=order.pk).aupdate(status=Order.Status.REVIEW)
+        await Notification.objects.all().adelete()
+        return order
+
+    async def test_delivery_notification_carries_review_buttons(self):
+        from . import outbox
+
+        markup = outbox._markup({"order_id": 7, "kind": Notification.Kind.CLIENT_DELIVERY})
+        data = [b.callback_data for row in markup.inline_keyboard for b in row]
+        self.assertEqual(data, ["dacc:7", "drev:7", "dfiles:7", "chat:7"])
+
+    async def test_order_card_offers_review_actions_only_in_review(self):
+        dialog = self.dialog()
+        order = await self.review_order(dialog)
+
+        card = sent(await dialog.press(f"my:{order.pk}"))[0]
+        self.assertIn(f"dacc:{order.pk}", button_data(card))
+        self.assertIn(f"dfiles:{order.pk}", button_data(card))
+
+        await Order.objects.filter(pk=order.pk).aupdate(status=Order.Status.DONE)
+        card = sent(await dialog.press(f"my:{order.pk}"))[0]
+        self.assertNotIn(f"dacc:{order.pk}", button_data(card))
+        self.assertIn(f"dfiles:{order.pk}", button_data(card))  # файлы доступны и после приёмки
+
+    async def test_client_accepts_the_work(self):
+        dialog = self.dialog()
+        order = await self.review_order(dialog)
+
+        calls = await dialog.press(f"dacc:{order.pk}")
+
+        await order.arefresh_from_db()
+        self.assertEqual(order.status, Order.Status.DONE)
+        self.assertIn("принята", texts(calls))
+        self.assertTrue(
+            await Notification.objects.filter(
+                kind=Notification.Kind.ADMIN_EVENT, chat_id=ADMIN_ID
+            ).aexists()
+        )
+
+    async def test_accept_is_refused_for_foreign_or_unfinished_orders(self):
+        owner, stranger = self.dialog(), self.dialog()
+        order = await self.review_order(owner)
+
+        await stranger.press(f"dacc:{order.pk}")
+        await order.arefresh_from_db()
+        self.assertEqual(order.status, Order.Status.REVIEW)
+
+        await Order.objects.filter(pk=order.pk).aupdate(status=Order.Status.IN_PROGRESS)
+        calls = await owner.press(f"dacc:{order.pk}")
+        self.assertIn("только заказ со статусом", texts(calls))
+
+    async def test_client_requests_revisions(self):
+        dialog = self.dialog()
+        order = await self.review_order(dialog)
+
+        self.assertIn("Опишите, что нужно изменить", texts(await dialog.press(f"drev:{order.pk}")))
+        calls = await dialog.say("Поменяйте цвет корпуса на синий")
+
+        await order.arefresh_from_db()
+        self.assertEqual((order.status, order.revisions_used), (Order.Status.IN_PROGRESS, 1))
+        self.assertIn("правка 1", texts(calls))
+        message = await OrderMessage.objects.aget(order=order)
+        self.assertIn("Поменяйте цвет корпуса на синий", message.text)
+        self.assertTrue(
+            await Notification.objects.filter(
+                kind=Notification.Kind.ADMIN_MESSAGE, chat_id=ADMIN_ID
+            ).aexists()
+        )
+
+    async def test_revision_is_refused_outside_review_and_for_strangers(self):
+        owner, stranger = self.dialog(), self.dialog()
+        order = await self.review_order(owner)
+
+        refusal = texts(await stranger.press(f"drev:{order.pk}"))
+        self.assertIn(
+            "только у заказа", refusal
+        )  # одинаковый ответ: наличие чужого заказа не раскрываем
+        await stranger.say("взлом")
+        self.assertFalse(await OrderMessage.objects.filter(order=order).aexists())
+
+        await Order.objects.filter(pk=order.pk).aupdate(status=Order.Status.IN_PROGRESS)
+        calls = await owner.press(f"drev:{order.pk}")
+        self.assertIn("только у заказа", texts(calls))
+
+    async def test_client_receives_files(self):
+        dialog = self.dialog()
+        order = await self.review_order(dialog)
+
+        calls = await dialog.press(f"dfiles:{order.pk}")
+
+        documents = [c for c in calls if isinstance(c, SendDocument)]
+        self.assertEqual(len(documents), 1)
+        self.assertEqual(documents[0].caption, "Рендеры v1")
+        self.assertEqual(documents[0].document.filename, "render.png")
+
+    async def test_stranger_gets_no_files(self):
+        owner, stranger = self.dialog(), self.dialog()
+        order = await self.review_order(owner)
+
+        calls = await stranger.press(f"dfiles:{order.pk}")
+
+        self.assertFalse([c for c in calls if isinstance(c, SendDocument)])
+        self.assertIn("Файлов пока нет", texts(calls))

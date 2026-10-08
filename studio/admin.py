@@ -2,7 +2,16 @@ from django.contrib import admin
 from django.urls import reverse
 from django.utils.html import format_html
 
-from .models import Notification, Order, OrderMessage, PortfolioItem, Profile, Review, Service
+from .models import (
+    Notification,
+    Order,
+    OrderDelivery,
+    OrderMessage,
+    PortfolioItem,
+    Profile,
+    Review,
+    Service,
+)
 
 
 @admin.register(Service)
@@ -45,6 +54,21 @@ class OrderMessageInline(admin.TabularInline):
         return False
 
 
+class OrderDeliveryInline(admin.TabularInline):
+    model = OrderDelivery
+    extra = 1
+    fields = ("title", "file", "note", "download_link", "created_at")
+    readonly_fields = ("download_link", "created_at")
+
+    @admin.display(description="Скачать")
+    def download_link(self, obj):
+        if not obj.pk:
+            return "—"
+        return format_html(
+            '<a href="{}">{}</a>', reverse("delivery-download", args=[obj.pk]), obj.filename
+        )
+
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = ("id", "name", "service", "status", "source", "contact", "created_at")
@@ -52,9 +76,17 @@ class OrderAdmin(admin.ModelAdmin):
     list_editable = ("status",)
     search_fields = ("name", "email", "phone", "telegram_username", "description")
     date_hierarchy = "created_at"
-    readonly_fields = ("public_id", "user", "telegram_id", "source", "created_at", "reference_link")
+    readonly_fields = (
+        "public_id",
+        "user",
+        "telegram_id",
+        "source",
+        "created_at",
+        "revisions_used",
+        "reference_link",
+    )
     exclude = ("reference_file",)
-    inlines = [OrderMessageInline]
+    inlines = [OrderDeliveryInline, OrderMessageInline]
     actions = ["mark_in_progress", "mark_done"]
 
     @admin.display(description="Контакты")

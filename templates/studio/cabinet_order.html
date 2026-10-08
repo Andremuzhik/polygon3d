@@ -11,6 +11,35 @@
       <div class="prose">{{ order.description|linebreaks }}</div>
       {% if order.reference_file %}<p><a href="{% url 'order-file' order.pk %}">📎 Приложенный файл</a></p>{% endif %}
 
+      {% if deliveries %}
+      <h2>Результаты</h2>
+      <ul class="files">
+        {% for d in deliveries %}
+          <li>
+            <a href="{% url 'delivery-download' d.pk %}">📎 {{ d.display_title }}</a>
+            <span class="muted">{{ d.filename }} · {{ d.file.size|filesizeformat }} · {{ d.created_at|date:"d.m.Y H:i" }}</span>
+            {% if d.note %}<span class="muted">{{ d.note }}</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      {% if can_review %}
+      <div class="panel review">
+        <h3>Результат готов: что скажете?</h3>
+        <p class="muted">Запрошено правок: {{ order.revisions_used }} (в стоимость входят {{ revisions_included }}).</p>
+        <form method="post" action="{% url 'order-accept' order.pk %}">
+          {% csrf_token %}
+          <button class="btn" type="submit">✅ Принять работу</button>
+        </form>
+        <form method="post" action="{% url 'order-revision' order.pk %}" class="form mt">
+          {% csrf_token %}
+          {{ revision_form.text }}
+          <button class="btn btn--ghost" type="submit">✏️ Запросить правки</button>
+        </form>
+      </div>
+      {% endif %}
+
       <h2>Переписка с менеджером</h2>
       <div class="chat">
         {% for m in chat %}

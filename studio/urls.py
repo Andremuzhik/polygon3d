@@ -56,5 +56,8 @@ urlpatterns = [
     path("cabinet/", views.cabinet, name="cabinet"),
     path("cabinet/orders/<int:pk>/", views.cabinet_order, name="cabinet-order"),
     path("cabinet/orders/<int:pk>/file/", views.order_reference, name="order-file"),
+    path("cabinet/orders/<int:pk>/accept/", views.order_accept, name="order-accept"),
+    path("cabinet/orders/<int:pk>/revision/", views.order_request_revision, name="order-revision"),
+    path("cabinet/deliveries/<int:pk>/", views.delivery_download, name="delivery-download"),
     path("cabinet/telegram/unlink/", views.telegram_unlink, name="telegram-unlink"),
 ]

@@ -14,6 +14,7 @@ from django.db import close_old_connections, connection
 from django.db.models import Q
 from django.utils import timezone
 
+from studio import services
 from studio.models import Notification, Order, OrderMessage, PortfolioItem, Profile, Service
 from studio.validators import validate_reference
 
@@ -153,6 +154,9 @@ def get_order(tg_id: int, order_id: int) -> dict | None:
     if not order:
         return None
     data = _order_dict(order)
+    data["in_review"] = order.status == Order.Status.REVIEW
+    data["deliveries"] = order.deliveries.count()
+    data["revisions_used"] = order.revisions_used
     data["messages"] = [
         {"sender": m.sender, "text": m.text}
         for m in reversed(list(order.messages.order_by("-created_at")[:5]))
@@ -167,6 +171,29 @@ def add_client_message(tg_id: int, order_id: int, text: str) -> bool:
         return False
     OrderMessage.objects.create(order=order, sender=OrderMessage.Sender.CLIENT, text=text)
     return True
+
+
+@db
+def accept_order(tg_id: int, order_id: int) -> bool:
+    order = _own_orders(tg_id).filter(pk=order_id).first()
+    return bool(order and services.accept_order(order))
+
+
+@db
+def request_revision(tg_id: int, order_id: int, text: str) -> int | None:
+    order = _own_orders(tg_id).filter(pk=order_id).first()
+    return services.request_revision(order, text) if order else None
+
+
+@db
+def delivery_files(tg_id: int, order_id: int) -> list[dict]:
+    order = _own_orders(tg_id).filter(pk=order_id).first()
+    if not order:
+        return []
+    return [
+        {"title": d.display_title, "filename": d.filename, "path": d.file.path}
+        for d in order.deliveries.all()
+    ]
 
 
 @db

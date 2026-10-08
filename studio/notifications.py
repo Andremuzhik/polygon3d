@@ -1,8 +1,9 @@
 from html import escape
 
 from django.conf import settings
+from django.utils import timezone
 
-from .models import Notification, Order, OrderMessage
+from .models import Notification, Order, OrderDelivery, OrderMessage
 
 TELEGRAM_LIMIT = 3800
 
@@ -84,3 +85,34 @@ def message_created(message: OrderMessage) -> None:
             order,
             f"💬 <b>Менеджер по заказу №{order.pk}:</b>\n\n{body}",
         )
+
+
+def delivery_created(delivery: OrderDelivery) -> None:
+    """Менеджер загрузил результат: заказ уходит на согласование, клиент получает уведомление."""
+    order = delivery.order
+    # Условный update() в БД, а не проверка по объекту в памяти: он мог устареть. И update(), а не save(),
+    # чтобы клиенту пришло одно уведомление «результат готов», без отдельного о смене статуса.
+    moved = Order.objects.filter(
+        pk=order.pk, status__in=[Order.Status.NEW, Order.Status.IN_PROGRESS]
+    ).update(status=Order.Status.REVIEW, updated_at=timezone.now())
+    if moved:
+        order.status = Order.Status.REVIEW
+    if not _enabled():
+        return
+    note = f"\n{escape(delivery.note)}" if delivery.note else ""
+    _notify_client(
+        Notification.Kind.CLIENT_DELIVERY,
+        order,
+        f"📎 <b>Заказ №{order.pk}: результат готов</b>\n{escape(delivery.display_title)}{note}\n\n"
+        "Посмотрите файлы, затем примите работу или попросите правки.",
+    )
+
+
+def client_accepted(order: Order) -> None:
+    if not _enabled():
+        return
+    _notify_admins(
+        Notification.Kind.ADMIN_EVENT,
+        order,
+        f"✅ <b>Клиент принял работу по заказу №{order.pk}</b> ({escape(order.name)})",
+    )

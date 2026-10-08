@@ -19,8 +19,14 @@ POLL_SECONDS = 2
 def _markup(item: dict):
     if not item["order_id"]:
         return None
-    if item["kind"] in (Notification.Kind.ADMIN_ORDER, Notification.Kind.ADMIN_MESSAGE):
+    if item["kind"] in (
+        Notification.Kind.ADMIN_ORDER,
+        Notification.Kind.ADMIN_MESSAGE,
+        Notification.Kind.ADMIN_EVENT,
+    ):
         return kb.admin_order_actions(item["order_id"])
+    if item["kind"] == Notification.Kind.CLIENT_DELIVERY:
+        return kb.delivery_actions(item["order_id"])
     if item["kind"] == Notification.Kind.CLIENT_MESSAGE:
         return kb.client_order_actions(item["order_id"])
     return None

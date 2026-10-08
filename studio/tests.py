@@ -709,3 +709,188 @@ class UploadContentTests(TestCase):
         ]:
             with self.subTest(name, content=content[:6]), self.assertRaises(ValidationError):
                 check(name, content)
+
+
+PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\0" * 32
+
+
+@override_settings(TELEGRAM_BOT_TOKEN="test-token", TELEGRAM_ADMIN_IDS=[111])
+class DeliveryTests(TestCase):
+    """Сдача результата: файлы, согласование, правки."""
+
+    def setUp(self):
+        self._media = tempfile.TemporaryDirectory()
+        self.addCleanup(self._media.cleanup)
+        override = override_settings(MEDIA_ROOT=self._media.name)
+        override.enable()
+        self.addCleanup(override.disable)
+        self.alice = User.objects.create_user("alice", "alice@example.com", "pass-12345-x")
+        self.bob = User.objects.create_user("bob", "bob@example.com", "pass-12345-x")
+        self.order = Order.objects.create(
+            user=self.alice,
+            name="Alice",
+            email="alice@example.com",
+            description="x",
+            status=Order.Status.IN_PROGRESS,
+            telegram_id=555,
+        )
+        Notification.objects.all().delete()
+
+    def deliver(self, order=None, name="render.png", content=PNG_BYTES, **extra):
+        from .models import OrderDelivery
+
+        return OrderDelivery.objects.create(
+            order=order or self.order, file=SimpleUploadedFile(name, content), **extra
+        )
+
+    def test_delivery_sends_order_to_review_with_a_single_notification(self):
+        self.deliver(title="Рендеры v1", note="Первый вариант")
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.REVIEW)
+        note = Notification.objects.get()  # без отдельного уведомления о смене статуса
+        self.assertEqual((note.kind, note.chat_id), (Notification.Kind.CLIENT_DELIVERY, 555))
+        self.assertIn("Рендеры v1", note.text)
+        self.assertIn("Первый вариант", note.text)
+
+    def test_delivery_does_not_reopen_finished_orders(self):
+        Order.objects.filter(pk=self.order.pk).update(status=Order.Status.DONE)
+        self.deliver()
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.DONE)
+
+    @override_settings(TELEGRAM_BOT_TOKEN="")
+    def test_status_moves_to_review_even_without_telegram(self):
+        self.deliver()
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.REVIEW)
+        self.assertFalse(Notification.objects.exists())
+
+    def test_display_title_falls_back_to_file_name(self):
+        delivery = self.deliver(name="scene.glb", content=b"glTF" + b"\0" * 8)
+        self.assertTrue(delivery.display_title.startswith("scene"))
+        self.assertTrue(delivery.filename.endswith(".glb"))
+
+    def test_download_permissions(self):
+        delivery = self.deliver(title="Файл")
+        url = reverse("delivery-download", args=[delivery.pk])
+        self.assertEqual(self.client.get(url).status_code, 302)  # аноним → вход
+
+        self.client.force_login(self.bob)
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+        self.client.force_login(self.alice)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("attachment", response["Content-Disposition"])
+        self.assertEqual(b"".join(response.streaming_content), PNG_BYTES)
+
+        staff = User.objects.create_user("staff", "s@s.ru", "pass-12345-x", is_staff=True)
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_cabinet_shows_files_and_review_panel_only_in_review(self):
+        self.deliver(title="Рендеры v1")
+        self.client.force_login(self.alice)
+        page = self.client.get(reverse("cabinet-order", args=[self.order.pk]))
+        self.assertContains(page, "Рендеры v1")
+        self.assertContains(page, "Принять работу")
+        self.assertContains(page, "Запросить правки")
+
+        Order.objects.filter(pk=self.order.pk).update(status=Order.Status.DONE)
+        page = self.client.get(reverse("cabinet-order", args=[self.order.pk]))
+        self.assertContains(page, "Рендеры v1")
+        self.assertNotContains(page, "Принять работу")
+
+    def test_accept_marks_done_and_notifies_managers(self):
+        self.deliver()
+        Notification.objects.all().delete()
+        self.client.force_login(self.alice)
+
+        response = self.client.post(reverse("order-accept", args=[self.order.pk]))
+
+        self.assertRedirects(response, reverse("cabinet-order", args=[self.order.pk]))
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.DONE)
+        kinds = set(Notification.objects.values_list("kind", flat=True))
+        self.assertEqual(kinds, {Notification.Kind.CLIENT_STATUS, Notification.Kind.ADMIN_EVENT})
+        admin_note = Notification.objects.get(kind=Notification.Kind.ADMIN_EVENT)
+        self.assertEqual(admin_note.chat_id, 111)
+
+    def test_accept_requires_review_status_owner_and_post(self):
+        url = reverse("order-accept", args=[self.order.pk])  # заказ ещё «в работе»
+        self.client.force_login(self.alice)
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.client.post(url)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.IN_PROGRESS)
+
+        self.deliver()
+        self.client.force_login(self.bob)
+        self.assertEqual(self.client.post(url).status_code, 404)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.Status.REVIEW)
+
+    def test_revision_returns_order_to_work_and_counts(self):
+        self.deliver()
+        self.client.force_login(self.alice)
+        url = reverse("order-revision", args=[self.order.pk])
+
+        self.client.post(url, {"text": "Сделайте глаза больше"})
+
+        self.order.refresh_from_db()
+        self.assertEqual(
+            (self.order.status, self.order.revisions_used), (Order.Status.IN_PROGRESS, 1)
+        )
+        message = self.order.messages.get()
+        self.assertEqual(message.sender, OrderMessage.Sender.CLIENT)
+        self.assertIn("правка 1 из 2", message.text)
+        self.assertIn("Сделайте глаза больше", message.text)
+        self.assertTrue(
+            Notification.objects.filter(kind=Notification.Kind.ADMIN_MESSAGE, chat_id=111).exists()
+        )
+
+    def test_revisions_beyond_the_included_ones_are_flagged(self):
+        self.client.force_login(self.alice)
+        url = reverse("order-revision", args=[self.order.pk])
+        for i in range(3):
+            self.deliver(title=f"v{i}")
+            Order.objects.filter(pk=self.order.pk).update(status=Order.Status.REVIEW)
+            self.client.post(url, {"text": f"Правка {i}"})
+
+        texts = list(self.order.messages.values_list("text", flat=True))
+        self.assertIn("правка 3, сверх 2 включённых", texts[-1])
+        self.assertIn("правка 2 из 2", texts[1])
+
+    def test_revision_needs_text_review_status_and_owner(self):
+        url = reverse("order-revision", args=[self.order.pk])
+        self.client.force_login(self.alice)
+        self.client.post(url, {"text": "Правка вне согласования"})  # статус «в работе»
+        self.assertFalse(self.order.messages.exists())
+
+        self.deliver()
+        self.client.post(url, {"text": "  "})
+        self.order.refresh_from_db()
+        self.assertEqual((self.order.status, self.order.revisions_used), (Order.Status.REVIEW, 0))
+
+        self.client.force_login(self.bob)
+        self.assertEqual(self.client.post(url, {"text": "чужой заказ"}).status_code, 404)
+
+    def test_delivery_files_are_validated_by_content(self):
+        from django.core.exceptions import ValidationError
+
+        from .models import OrderDelivery
+
+        def check(name, content):
+            delivery = OrderDelivery(order=self.order, file=SimpleUploadedFile(name, content))
+            delivery.full_clean()
+
+        check("scene.blend", b"BLENDER-v400" + b"\0" * 16)
+        check("renders.zip", b"PK\x03\x04" + b"\0" * 16)
+        for name, content in [
+            ("scene.blend", b"MZ\x90 not blender"),
+            ("tool.exe", b"MZ\x90"),
+            ("a.png", b"<html>"),
+        ]:
+            with self.subTest(name), self.assertRaises(ValidationError):
+                check(name, content)

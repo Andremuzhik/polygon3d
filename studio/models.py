@@ -6,7 +6,9 @@ from django.db import models
 from django.urls import reverse
 
 from .images import OptimizeImageOnUpload
-from .validators import validate_model, validate_reference
+from .validators import validate_delivery, validate_model, validate_reference
+
+REVISIONS_INCLUDED = 2  # правок, входящих в стоимость
 
 
 class Service(OptimizeImageOnUpload, models.Model):
@@ -152,6 +154,7 @@ class Order(models.Model):
         "Источник", max_length=10, choices=Source.choices, default=Source.SITE
     )
     manager_note = models.TextField("Внутренняя заметка", blank=True)
+    revisions_used = models.PositiveSmallIntegerField("Запрошено правок", default=0, editable=False)
     created_at = models.DateTimeField("Создан", auto_now_add=True)
     updated_at = models.DateTimeField("Обновлён", auto_now=True)
 
@@ -172,6 +175,34 @@ class Order(models.Model):
             profile = Profile.objects.filter(user_id=self.user_id).first()
             return profile.telegram_id if profile else None
         return None
+
+
+class OrderDelivery(models.Model):
+    """Файл с результатом работы: лежит в приватном хранилище, скачивают владелец заказа и менеджеры."""
+
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="deliveries")
+    title = models.CharField(
+        "Название", max_length=120, blank=True, help_text="Например: Рендеры, версия 1"
+    )
+    file = models.FileField("Файл", upload_to="deliveries/%Y/%m/", validators=validate_delivery)
+    note = models.CharField("Комментарий", max_length=255, blank=True)
+    created_at = models.DateTimeField("Загружен", auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        verbose_name = "результат"
+        verbose_name_plural = "результаты"
+
+    def __str__(self):
+        return self.display_title
+
+    @property
+    def filename(self) -> str:
+        return self.file.name.rsplit("/", 1)[-1]
+
+    @property
+    def display_title(self) -> str:
+        return self.title or self.filename
 
 
 class OrderMessage(models.Model):
@@ -201,6 +232,8 @@ class Notification(models.Model):
         ADMIN_MESSAGE = "admin_message", "Менеджеру: сообщение клиента"
         CLIENT_STATUS = "client_status", "Клиенту: смена статуса"
         CLIENT_MESSAGE = "client_message", "Клиенту: ответ менеджера"
+        CLIENT_DELIVERY = "client_delivery", "Клиенту: результат готов"
+        ADMIN_EVENT = "admin_event", "Менеджеру: событие по заказу"
 
     chat_id = models.BigIntegerField()
     kind = models.CharField(max_length=20, choices=Kind.choices)

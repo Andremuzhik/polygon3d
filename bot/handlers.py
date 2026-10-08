@@ -2,6 +2,7 @@ import logging
 from html import escape
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramAPIError
 from aiogram.filters import Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -29,6 +30,10 @@ class ClientChat(StatesGroup):
 
 
 class AdminReply(StatesGroup):
+    writing = State()
+
+
+class ClientRevision(StatesGroup):
     writing = State()
 
 
@@ -275,7 +280,9 @@ async def order_card(call: CallbackQuery):
         f"<b>Заказ №{order['id']}</b> · {escape(order['service'])}\n"
         f"Статус: <b>{order['status']}</b>\n"
         f"Создан: {order['created']:%d.%m.%Y}{history}",
-        reply_markup=kb.client_order_actions(order["id"]),
+        reply_markup=kb.client_order_actions(
+            order["id"], deliveries=order["deliveries"], in_review=order["in_review"]
+        ),
     )
 
 
@@ -306,6 +313,68 @@ async def chat_send(message: Message, state: FSMContext):
         )
     else:
         await message.answer("Не удалось отправить: заказ не найден.", reply_markup=kb.main_menu())
+
+
+@client_router.callback_query(F.data.startswith("dfiles:"))
+async def delivery_files(call: CallbackQuery):
+    files = await db.delivery_files(call.from_user.id, int(call.data.split(":")[1]))
+    await call.answer()
+    if not files:
+        await call.message.answer("Файлов пока нет.")
+        return
+    for item in files:
+        try:
+            await call.message.answer_document(
+                FSInputFile(item["path"], filename=item["filename"]), caption=escape(item["title"])
+            )
+        except (OSError, TelegramAPIError):
+            log.exception("Не удалось отправить файл %s", item["filename"])
+            await call.message.answer(
+                f"Не получилось отправить «{escape(item['title'])}». Скачайте файл в личном кабинете "
+                f"на сайте: {settings.SITE_URL}/cabinet/."
+            )
+
+
+@client_router.callback_query(F.data.startswith("dacc:"))
+async def delivery_accept(call: CallbackQuery):
+    order_id = int(call.data.split(":")[1])
+    accepted = await db.accept_order(call.from_user.id, order_id)
+    await call.answer()
+    await call.message.answer(
+        f"🎉 Спасибо! Работа по заказу №{order_id} принята, заказ выполнен."
+        if accepted
+        else "Принять можно только заказ со статусом «На согласовании»."
+    )
+
+
+@client_router.callback_query(F.data.startswith("drev:"))
+async def delivery_revision_start(call: CallbackQuery, state: FSMContext):
+    order_id = int(call.data.split(":")[1])
+    order = await db.get_order(call.from_user.id, order_id)
+    await call.answer()
+    if not order or not order["in_review"]:
+        await call.message.answer("Запросить правки можно только у заказа «На согласовании».")
+        return
+    await state.set_state(ClientRevision.writing)
+    await state.update_data(revision_order_id=order_id)
+    await call.message.answer(
+        f"Опишите, что нужно изменить в заказе №{order_id}. Чем конкретнее, тем быстрее правки.",
+        reply_markup=kb.cancel_menu(),
+    )
+
+
+@client_router.message(ClientRevision.writing, F.text)
+async def delivery_revision_send(message: Message, state: FSMContext):
+    data = await state.get_data()
+    order_id = data["revision_order_id"]
+    number = await db.request_revision(message.from_user.id, order_id, message.text)
+    await state.clear()
+    await message.answer(
+        f"✅ Правки по заказу №{order_id} отправлены менеджеру, заказ снова в работе (правка {number})."
+        if number
+        else "Не удалось отправить правки: заказ уже не на согласовании.",
+        reply_markup=kb.main_menu(),
+    )
 
 
 # ---------------------------------------------------------------- менеджеры
