@@ -1,4 +1,4 @@
-.PHONY: up down logs build test smoke lock lint format migrations superuser seed shell
+.PHONY: up down logs build test smoke scan lock lint format migrations superuser seed shell
 
 up:
 	docker compose up --build -d
@@ -17,6 +17,12 @@ test:
 
 smoke:
 	sh scripts/smoke_test.sh
+
+scan:  # те же проверки, что в .github/workflows/security.yml
+	docker run --rm -v "$(PWD)":/src -w /src python:3.13-slim sh -c "pip install -q pip-audit && pip-audit -r requirements.txt --require-hashes --progress-spinner off"
+	docker run --rm -v "$(PWD)":/repo zricethezav/gitleaks:latest detect --source /repo --config /repo/.gitleaks.toml --redact --no-banner
+	docker build -q -t polygon3d:scan . && docker save polygon3d:scan -o /tmp/polygon3d-scan.tar
+	docker run --rm -v /tmp/polygon3d-scan.tar:/img.tar:ro -v trivy-cache:/root/.cache aquasec/trivy:latest image --input /img.tar --severity HIGH,CRITICAL --ignore-unfixed --scanners vuln --exit-code 1
 
 lock:
 	docker run --rm -v "$(PWD)":/src -w /src python:3.13-slim sh -c "pip install -q pip-tools && \

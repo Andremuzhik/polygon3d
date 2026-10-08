@@ -1,0 +1,6 @@
+name: Polygon3D CodeQL
+paths-ignore:
+  - static/vendor   # сторонний минифицированный model-viewer
+  - demo_assets
+  - docs
+  - "**/migrations"

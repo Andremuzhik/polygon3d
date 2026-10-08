@@ -1,0 +1,71 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"  # по понедельникам: новые уязвимости появляются и без наших коммитов
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: python,javascript-typescript
+          config-file: ./.github/codeql/codeql-config.yml
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:all
+
+  dependencies:
+    name: Dependency audit (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install pip-audit
+      - name: Known vulnerabilities in pinned dependencies
+        run: pip-audit -r requirements.txt --require-hashes --progress-spinner off
+
+  image:
+    name: Image scan (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the production image
+        run: docker build -t polygon3d:scan .
+      - name: Fail on fixable HIGH/CRITICAL vulnerabilities
+        run: |
+          docker save polygon3d:scan -o "$RUNNER_TEMP/image.tar"
+          docker run --rm -v "$RUNNER_TEMP/image.tar":/img.tar:ro aquasec/trivy:latest image \
+            --input /img.tar --severity HIGH,CRITICAL --ignore-unfixed --scanners vuln --exit-code 1
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # нужна вся история, а не только последний коммит
+      - name: Scan the whole git history
+        run: |
+          docker run --rm -v "$PWD":/repo zricethezav/gitleaks:latest detect \
+            --source /repo --config /repo/.gitleaks.toml --redact --no-banner

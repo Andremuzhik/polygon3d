@@ -1,6 +1,7 @@
 # Polygon3D — сайт студии 3D-моделирования + Telegram-бот
 
 [![CI/CD](https://github.com/Andremuzhik/polygon3d/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Andremuzhik/polygon3d/actions/workflows/ci-cd.yml)
+[![Security](https://github.com/Andremuzhik/polygon3d/actions/workflows/security.yml/badge.svg)](https://github.com/Andremuzhik/polygon3d/actions/workflows/security.yml)
 ![Python](https://img.shields.io/badge/python-3.13-blue)
 ![Django](https://img.shields.io/badge/django-5.2-0c4b33)
 ![aiogram](https://img.shields.io/badge/aiogram-3-2f9ae0)
@@ -78,6 +79,7 @@ flowchart LR
 - **Ограничение частоты.** Заявки, регистрация, вход, сброс пароля и сообщения в кабинете ограничены по IP (`studio/throttle.py`), в боте — не больше 5 заказов в час с аккаунта. Счётчики лежат в кэше в БД, общем для воркеров gunicorn. `X-Forwarded-For` учитывается только за нашим прокси (`DJANGO_BEHIND_PROXY=1` в production compose), иначе лимит можно было бы обойти поддельным заголовком.
 - **Проверка загрузок по содержимому.** Расширению файла не доверяем: сигнатуры PNG/JPEG/PDF/ZIP/GLB и других сверяются с началом файла, исполняемые файлы и HTML под видом `.obj`/`.stl` отклоняются. Картинки дополнительно пережимаются в JPEG (до 1600 px), это же убирает всё, что дописано в конец файла.
 - **Заголовки безопасности.** CSP без `unsafe-eval` для скриптов (только `wasm-unsafe-eval` и gstatic для декодеров `model-viewer`), `Permissions-Policy`, HSTS за HTTPS. `model-viewer` лежит в `static/vendor` (сценарий `scripts/vendor_model_viewer.sh` проверяет контрольную сумму пакета), сторонних CDN в рантайме нет.
+- **Сканирование безопасности.** Отдельный workflow: CodeQL (Python и JS), `pip-audit` по закреплённым зависимостям, Trivy по собранному Docker-образу (падает на исправимых HIGH/CRITICAL), gitleaks по всей истории git; плюс запуск раз в неделю, потому что новые уязвимости появляются и без наших коммитов. Локально то же самое делает `make scan`. Первый же прогон Trivy нашёл уязвимые библиотеки, вшитые в `pip` внутри образа, поэтому `pip` удаляется из итогового образа.
 - **Воспроизводимые сборки.** `requirements.in` задаёт ограничения, `pip-compile` собирает `requirements.txt` с хешами (`make lock`), pip ставит их в режиме `--require-hashes`. Dependabot обновляет pip, Docker-образы и GitHub Actions.
 - **Доступность и скорость.** Lighthouse (мобильный профиль): доступность 100 на проверенных страницах, контраст по WCAG AA, ссылка «Перейти к содержимому», проверено на 390 px без горизонтального переполнения.
 - **Тесты:** 100 штук. Диалоги бота (оформление заказа, чат, права менеджера) гоняются через настоящий aiogram `Dispatcher` с поддельной сессией Telegram, плюс БД-слой, outbox, лимиты и проверка файлов; в CI идут на PostgreSQL. Отдельный smoke-тест поднимает собранный Docker-образ с PostgreSQL и обходит страницы (`make smoke`).
@@ -92,7 +94,7 @@ make seed         # демо-услуги, 6 работ с 3D-моделями �
 make superuser    # администратор → http://localhost:8000/admin/
 ```
 
-Остальное: `make logs`, `make down`, `make test`, `make smoke` (smoke-тест боевого образа), `make lint`, `make format`, `make lock` (пересобрать `requirements.txt` с хешами).
+Остальное: `make logs`, `make down`, `make test`, `make smoke` (smoke-тест боевого образа), `make scan` (проверки безопасности), `make lint`, `make format`, `make lock` (пересобрать `requirements.txt` с хешами).
 
 ### Подключение бота
 1. Создайте бота у [@BotFather](https://t.me/BotFather) и получите токен.
@@ -127,6 +129,7 @@ docs/         скриншоты для README
 | `test` | каждый push и PR | ruff, проверка миграций, `check --deploy`, тесты на PostgreSQL |
 | `smoke` | каждый push и PR | собирает production-образ, поднимает с PostgreSQL, обходит страницы, проверяет лимит запросов, статику и запуск не от root |
 | `build` | push в `main`, после `test` и `smoke` | сборка образа, публикация в GHCR (`:sha` и `:latest`) |
+| `Security` (отдельный workflow) | push, PR и раз в неделю | CodeQL, pip-audit, Trivy по образу, gitleaks по истории |
 | `deploy` | вручную (Run workflow) | копирует compose-файлы на сервер по SSH, делает `pull` и `up -d` |
 
 Деплой запускается вручную, пока не настроены сервер и секреты. Чтобы выкатывать на каждый push в `main`, поменяйте условие `if:` у job `deploy` (подсказка в комментарии рядом).
