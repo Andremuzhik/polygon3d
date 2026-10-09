@@ -39,7 +39,8 @@ async def setup_commands(bot: Bot) -> None:
 
 async def run() -> None:
     if not settings.TELEGRAM_BOT_TOKEN:
-        raise SystemExit("TELEGRAM_BOT_TOKEN не задан — бот не может стартовать.")
+        log.warning("TELEGRAM_BOT_TOKEN не задан — бот не запускается.")
+        return
 
     bot = Bot(
         settings.TELEGRAM_BOT_TOKEN,

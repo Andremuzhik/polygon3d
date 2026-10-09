@@ -15,8 +15,6 @@ BTN_CANCEL = "✖️ Отмена"
 BTN_SKIP = "⏭ Пропустить"
 BTN_SHARE_PHONE = "📱 Отправить мой номер"
 
-MENU_BUTTONS = {BTN_SERVICES, BTN_PORTFOLIO, BTN_ORDER, BTN_MY_ORDERS, BTN_CONTACTS, BTN_CANCEL}
-
 
 def main_menu() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(

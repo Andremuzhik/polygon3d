@@ -18,7 +18,7 @@ def test_dashboard_shows_studio_metrics(admin_page, base_url):
     ):
         assert label.lower() in text.lower(), label
     total = int(re.search(r"Всего заказов\s+(\d+)", text).group(1))
-    assert total >= 1  # к этому моменту сквозной сценарий уже создал заказы
+    assert total >= 1
     assert admin_page.problems == []
 
 
@@ -35,5 +35,5 @@ def test_orders_can_be_exported_to_csv_from_the_changelist(admin_page, base_url)
     assert content.startswith("﻿")
     rows = list(csv.reader(io.StringIO(content.lstrip("﻿")), delimiter=";"))
     assert rows[0][:3] == ["№", "Создан", "Статус"]
-    assert len(rows) >= 2  # заголовок и хотя бы один заказ
-    assert any("Выполнен" in row for row in rows[1:])  # заказ из сквозного сценария принят клиентом
+    assert len(rows) >= 2
+    assert any("Выполнен" in row for row in rows[1:])

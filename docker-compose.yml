@@ -43,7 +43,7 @@ services:
       - media:/app/media
     depends_on:
       - web
-    restart: unless-stopped
+    restart: on-failure
 
 volumes:
   pgdata:

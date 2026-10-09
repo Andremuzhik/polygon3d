@@ -51,7 +51,6 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
-ASGI_APPLICATION = "config.asgi.application"
 
 TEMPLATES = [
     {
@@ -69,7 +68,7 @@ TEMPLATES = [
     },
 ]
 
-# --- Database: PostgreSQL if POSTGRES_DB is set, SQLite otherwise ---
+# --- База данных: PostgreSQL, если задан POSTGRES_DB, иначе SQLite ---
 if os.environ.get("POSTGRES_DB"):
     DATABASES = {
         "default": {
@@ -95,9 +94,7 @@ else:
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Кэш в БД: общий для воркеров gunicorn и контейнеров, переживает перезапуск
-# (нужен для лимитов запросов).
-# Таблицу создаёт `manage.py createcachetable` (entrypoint делает это при RUN_MIGRATIONS=1).
+# Кэш в БД, общий для воркеров gunicorn: на нём лимиты запросов (таблица: createcachetable).
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
@@ -123,7 +120,7 @@ TIME_ZONE = "Europe/Moscow"
 USE_I18N = True
 USE_TZ = True
 
-# --- Static & media ---
+# --- Статика и медиа ---
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]

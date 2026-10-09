@@ -13,3 +13,4 @@ staticfiles
 deploy
 docs
 scripts
+e2e

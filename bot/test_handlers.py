@@ -300,7 +300,6 @@ class OrderFlowTests(HandlerTestCase):
 
         self.assertIn("Не получилось сохранить", texts(calls))
         self.assertFalse(await Order.objects.filter(telegram_id=dialog.id).aexists())
-        # Диалог не сломан: можно пропустить референсы и завершить заказ.
         self.assertIn("принят", texts(await dialog.say(kb.BTN_SKIP)))
 
     async def test_oversized_document_is_refused(self):
@@ -465,7 +464,6 @@ class BotRateLimitTests(HandlerTestCase):
 
         self.assertIn("Слишком много заказов", texts(calls))
         self.assertEqual(await Order.objects.filter(telegram_id=dialog.id).acount(), 5)
-        # диалог сброшен, бот снова отвечает на команды
         self.assertIn("Не понял", texts(await dialog.say("привет")))
 
     async def test_old_orders_do_not_count(self):
@@ -530,7 +528,7 @@ class DeliveryDialogTests(HandlerTestCase):
         await Order.objects.filter(pk=order.pk).aupdate(status=Order.Status.DONE)
         card = sent(await dialog.press(f"my:{order.pk}"))[0]
         self.assertNotIn(f"dacc:{order.pk}", button_data(card))
-        self.assertIn(f"dfiles:{order.pk}", button_data(card))  # файлы доступны и после приёмки
+        self.assertIn(f"dfiles:{order.pk}", button_data(card))
 
     async def test_client_accepts_the_work(self):
         dialog = self.dialog()

@@ -23,7 +23,7 @@ def client_ip(request) -> str:
 def allow(scope: str, key: str, limit: int, window: int) -> bool:
     """Регистрирует обращение; False, если за `window` секунд их стало больше `limit`."""
     cache_key = f"throttle:{scope}:{key}"
-    if cache.add(cache_key, 1, window):  # первое обращение открывает окно
+    if cache.add(cache_key, 1, window):
         return True
     try:
         return cache.incr(cache_key) <= limit

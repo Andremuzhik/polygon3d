@@ -29,7 +29,7 @@ def test_custom_404_page(page, base_url):
     response = page.goto(base_url + "/no-such-page/")
     assert response.status == 404
     assert page.get_by_role("heading", name="Такой страницы нет").is_visible()
-    assert page.problems == [] or all("404" in p for p in page.problems)  # сам документ вернул 404
+    assert page.problems == [] or all("404" in p for p in page.problems)
 
 
 def test_public_media_is_served_by_caddy_and_cached(page, base_url):

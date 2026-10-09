@@ -74,7 +74,6 @@ REVIEWS = [
 
 ASSETS = Path(settings.BASE_DIR) / "demo_assets"
 
-# Услуге подбираем превью из подходящей работы портфолио.
 SERVICE_PREVIEWS = {
     "character-modeling": "robot-courier",
     "product-visualization": "coffee-mug",

@@ -1,9 +1,7 @@
 from django.conf import settings
 
-# Скрипты и подключения — только свои. Исключения для model-viewer: gstatic (декодеры Draco/KTX2 для
-# сжатых glTF-моделей) и 'wasm-unsafe-eval' (компиляция WebAssembly этих декодеров; обычный eval
-# по-прежнему запрещён). Inline-стили разрешены: ими пользуется сам model-viewer, а XSS строится
-# на скриптах, которые запрещены полностью.
+# gstatic и 'wasm-unsafe-eval' нужны декодерам сжатых моделей в model-viewer, обычный eval запрещён.
+# Inline-стили разрешены: ими пользуется сам model-viewer.
 CONTENT_SECURITY_POLICY = "; ".join(
     [
         "default-src 'self'",

@@ -1,3 +1,4 @@
+import asyncio
 from unittest import mock
 
 from aiogram.exceptions import TelegramForbiddenError
@@ -8,6 +9,7 @@ from django.test import TestCase, override_settings
 from studio.models import Notification, Order, OrderMessage, Profile, Service
 
 from . import db, outbox
+from .main import run
 
 User = get_user_model()
 
@@ -109,4 +111,12 @@ class OutboxTests(TestCase):
         self.assertIsNotNone(ok.sent_at)
         self.assertIsNone(blocked.sent_at)
         self.assertEqual(blocked.attempts, db.MAX_ATTEMPTS)
-        self.assertEqual(await outbox.deliver_pending(bot), 0)  # больше не повторяем
+        self.assertEqual(await outbox.deliver_pending(bot), 0)
+
+
+class RunWithoutTokenTests(TestCase):
+    @override_settings(TELEGRAM_BOT_TOKEN="")
+    def test_bot_exits_quietly_without_a_token(self):
+        with self.assertLogs("bot.main", level="WARNING") as logs:
+            asyncio.run(run())  # не падает и не ждёт Telegram
+        self.assertIn("TELEGRAM_BOT_TOKEN", logs.output[0])

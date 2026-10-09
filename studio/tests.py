@@ -192,7 +192,7 @@ class CabinetTests(TestCase):
             reference_file=SimpleUploadedFile("ref.png", b"png-bytes"),
         )
         url = reverse("order-file", args=[order.pk])
-        self.assertEqual(self.client.get(url).status_code, 302)  # аноним → логин
+        self.assertEqual(self.client.get(url).status_code, 302)
         self.client.force_login(self.bob)
         self.assertEqual(self.client.get(url).status_code, 404)
         self.client.force_login(self.alice)
@@ -338,7 +338,7 @@ class SeoAndErrorPagesTests(TestCase):
     def test_detail_pages_override_open_graph(self):
         service = self.client.get(self.service.get_absolute_url()).content.decode()
         self.assertIn('property="og:title" content="Видимая — Polygon3D"', service)
-        self.assertIn("og-cover.png", service)  # у услуги нет картинки → запасная
+        self.assertIn("og-cover.png", service)
 
         work = self.client.get(self.work.get_absolute_url()).content.decode()
         self.assertIn('property="og:title" content="Опубликованная — Polygon3D"', work)
@@ -469,7 +469,7 @@ class ImageOptimizationTests(TestCase):
         fmt, size, mode = self.open_saved(work.image)
         self.assertEqual((fmt, mode), ("JPEG", "RGB"))
         self.assertEqual(max(size), 1600)
-        self.assertEqual(size, (1600, 1067))  # пропорции сохранены
+        self.assertEqual(size, (1600, 1067))
         self.assertLess(work.image.size, original.size)
 
     def test_small_image_is_not_upscaled(self):
@@ -597,7 +597,7 @@ class ViewerAndAccessibilityTests(TestCase):
         self.assertIn("data-viewer-start", html)
         self.assertIn(f'data-src="{work.model_file.url}"', html)
         self.assertIn("/static/vendor/model-viewer/model-viewer.min.js", html)
-        self.assertNotIn('<script type="module"', html)  # тяжёлый скрипт не грузится сразу
+        self.assertNotIn('<script type="module"', html)
         self.assertNotIn("<model-viewer", html)
 
     def test_work_without_model_has_no_viewer_controls(self):
@@ -610,7 +610,7 @@ class ViewerAndAccessibilityTests(TestCase):
             with self.subTest(url):
                 html = self.client.get(url).content.decode()
                 self.assertIn("<h2>", html)
-                self.assertNotIn("<h3>", html)  # под <h1> сразу идут <h2>
+                self.assertNotIn("<h3>", html)
 
     def test_home_cards_stay_h3_under_section_headings(self):
         html = self.client.get(reverse("home")).content.decode()
@@ -749,7 +749,7 @@ class DeliveryTests(TestCase):
 
         self.order.refresh_from_db()
         self.assertEqual(self.order.status, Order.Status.REVIEW)
-        note = Notification.objects.get()  # без отдельного уведомления о смене статуса
+        note = Notification.objects.get()
         self.assertEqual((note.kind, note.chat_id), (Notification.Kind.CLIENT_DELIVERY, 555))
         self.assertIn("Рендеры v1", note.text)
         self.assertIn("Первый вариант", note.text)
@@ -775,7 +775,7 @@ class DeliveryTests(TestCase):
     def test_download_permissions(self):
         delivery = self.deliver(title="Файл")
         url = reverse("delivery-download", args=[delivery.pk])
-        self.assertEqual(self.client.get(url).status_code, 302)  # аноним → вход
+        self.assertEqual(self.client.get(url).status_code, 302)
 
         self.client.force_login(self.bob)
         self.assertEqual(self.client.get(url).status_code, 404)
@@ -819,7 +819,7 @@ class DeliveryTests(TestCase):
         self.assertEqual(admin_note.chat_id, 111)
 
     def test_accept_requires_review_status_owner_and_post(self):
-        url = reverse("order-accept", args=[self.order.pk])  # заказ ещё «в работе»
+        url = reverse("order-accept", args=[self.order.pk])
         self.client.force_login(self.alice)
         self.assertEqual(self.client.get(url).status_code, 405)
         self.client.post(url)
@@ -866,7 +866,7 @@ class DeliveryTests(TestCase):
     def test_revision_needs_text_review_status_and_owner(self):
         url = reverse("order-revision", args=[self.order.pk])
         self.client.force_login(self.alice)
-        self.client.post(url, {"text": "Правка вне согласования"})  # статус «в работе»
+        self.client.post(url, {"text": "Правка вне согласования"})
         self.assertFalse(self.order.messages.exists())
 
         self.deliver()
@@ -1004,7 +1004,7 @@ class EmailNotificationTests(TestCase):
         self.assertEqual(message.to, ["guest@example.com"])
         self.assertIn("заявка №", message.subject)
         self.assertIn("Здравствуйте, Гость!", message.body)
-        self.assertNotIn("/cabinet/", message.body)  # у гостя нет кабинета
+        self.assertNotIn("/cabinet/", message.body)
 
     def test_cabinet_link_only_for_registered_clients(self):
         Order.objects.filter(pk=self.order.pk).update(status=Order.Status.NEW)
@@ -1107,8 +1107,8 @@ class DashboardStatsTests(TestCase):
         service = Service.objects.create(
             title="Роботы", slug="r", short_description="s", description="d"
         )
-        self.make(Order.Status.NEW, created=self.ago(days=2))  # давно без реакции
-        self.make(Order.Status.NEW)  # свежий — не считается просроченным
+        self.make(Order.Status.NEW, created=self.ago(days=2))
+        self.make(Order.Status.NEW)
         self.make(Order.Status.IN_PROGRESS, service=service, source=Order.Source.BOT)
         self.make(Order.Status.REVIEW, service=service)
         self.make(Order.Status.DONE)
@@ -1123,7 +1123,7 @@ class DashboardStatsTests(TestCase):
         )
         self.assertEqual(stats["stale_new"], 1)
         self.assertEqual(stats["waiting_client"], 1)
-        self.assertEqual(stats["completion_rate"], 17)  # 1 из 6
+        self.assertEqual(stats["completion_rate"], 17)
         self.assertEqual(
             {s["label"]: s["count"] for s in stats["sources"]}, {"Сайт": 5, "Telegram-бот": 1}
         )
@@ -1136,13 +1136,11 @@ class DashboardStatsTests(TestCase):
         order = self.make(created=self.ago(days=10))
         order.status = Order.Status.DONE
         order.save()
-        order.events.filter(to_status="done").update(
-            created_at=self.ago(days=6)
-        )  # выполнен через 4 дня
+        order.events.filter(to_status="done").update(created_at=self.ago(days=6))
         other = self.make(created=self.ago(days=5))
         other.status = Order.Status.DONE
         other.save()
-        other.events.filter(to_status="done").update(created_at=self.ago(days=1))  # через 4 дня
+        other.events.filter(to_status="done").update(created_at=self.ago(days=1))
 
         self.assertEqual(dashboard_stats()["average_days"], 4.0)
 
@@ -1151,12 +1149,12 @@ class DashboardStatsTests(TestCase):
 
         self.make(created=self.ago(days=95))
         self.make(created=self.ago(days=95))
-        self.make()  # в этом месяце
+        self.make()
         stats = dashboard_stats(self.now)
 
         counts = [m["count"] for m in stats["months"]]
         self.assertEqual(sum(counts), 3)
-        self.assertEqual(counts[-1], 1)  # последний столбец — текущий месяц
+        self.assertEqual(counts[-1], 1)
         self.assertEqual(max(m["height"] for m in stats["months"]), 100)
         self.assertEqual(stats["created_this_month"], 1)
 
@@ -1225,9 +1223,9 @@ class OrderCsvExportTests(TestCase):
         row = rows[1]
         self.assertEqual(row[0], str(order.pk))
         self.assertEqual(row[2:6], ["Новый", "Сайт", "Роботы", "Иван"])
-        self.assertEqual(row[7], "+7 900 111-22-33")  # телефон остаётся читаемым, без апострофа
-        self.assertEqual(row[8], "ivan")  # без «@» и без защитного апострофа
-        self.assertIn("Строка 1\nСтрока 2", text)  # перенос строки сохранён внутри кавычек
+        self.assertEqual(row[7], "+7 900 111-22-33")
+        self.assertEqual(row[8], "ivan")
+        self.assertIn("Строка 1\nСтрока 2", text)
 
     def test_formula_injection_is_neutralised(self):
         order = Order.objects.create(
@@ -1239,7 +1237,7 @@ class OrderCsvExportTests(TestCase):
         )
         text = self.export(order).content.decode("utf-8")
         self.assertIn("'=HYPERLINK", text)
-        self.assertIn("'+1+1", text)  # не похоже на телефон → защищено
+        self.assertIn("'+1+1", text)
         self.assertIn("'@SUM(1+1)", text)
         self.assertIn("'-2+3", text)
         self.assertNotIn(";=HYPERLINK", text)

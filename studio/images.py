@@ -15,8 +15,8 @@ def optimize_image(upload) -> ContentFile | None:
     try:
         upload.seek(0)
         with Image.open(upload) as source:
-            image = ImageOps.exif_transpose(source)  # учитываем поворот с телефона
-            if image.mode in ("RGBA", "LA", "P"):  # прозрачность → белый фон
+            image = ImageOps.exif_transpose(source)
+            if image.mode in ("RGBA", "LA", "P"):
                 image = image.convert("RGBA")
                 background = Image.new("RGB", image.size, (255, 255, 255))
                 background.paste(image, mask=image.getchannel("A"))
@@ -36,7 +36,7 @@ class OptimizeImageOnUpload:
 
     def save(self, *args, **kwargs):
         field = self.image
-        if field and not field._committed:  # новый, ещё не записанный в хранилище файл
+        if field and not field._committed:
             optimized = optimize_image(field.file)
             if optimized is not None:
                 field.save(optimized.name, optimized, save=False)

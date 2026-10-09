@@ -38,9 +38,9 @@ SIGNATURES: dict[str, tuple[bytes, ...]] = {
 }
 # Исполняемые файлы и веб-контент, которым нечего делать в 3D-референсах.
 FORBIDDEN_PREFIXES = (
-    b"MZ",  # Windows exe/dll
+    b"MZ",
     b"\x7fELF",
-    b"\xcf\xfa\xed\xfe",  # Mach-O
+    b"\xcf\xfa\xed\xfe",
     b"\xca\xfe\xba\xbe",
     b"#!",
     b"<?php",
@@ -68,14 +68,14 @@ def validate_file_content(file):
     file.seek(0)
     head = file.read(HEAD_SIZE)
     file.seek(0)
-    if isinstance(head, str):  # на случай текстового потока
+    if isinstance(head, str):
         head = head.encode("utf-8", "ignore")
 
     mismatch = ValidationError(
         "Содержимое файла не соответствует его расширению. "
         "Загрузите настоящий файл нужного формата."
     )
-    if extension == "gltf":  # JSON-текст
+    if extension == "gltf":
         if not head.lstrip().startswith(b"{"):
             raise mismatch
         return
