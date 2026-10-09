@@ -1,49 +1,37 @@
-# Еженедельные PR с обновлениями. Python-зависимости собираются pip-compile (requirements.in →
-# requirements.txt с хешами), Dependabot умеет пересобирать такие файлы корректно.
+# Версионные обновления Dependabot отключены: PR от бота не нужны.
+# Уязвимости в зависимостях и Docker-образе проверяет еженедельный workflow Security
+# (pip-audit, Trivy), версии закреплены хешами в requirements.txt (обновление: `make lock`).
+# Чтобы вернуть обновления, уберите `ignore` и `open-pull-requests-limit` у нужной экосистемы.
 version: 2
 updates:
   - package-ecosystem: pip
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "deps"
-    groups:
-      python-minor-patch:
-        update-types: ["minor", "patch"]
+      interval: monthly
+    open-pull-requests-limit: 0
     ignore:
-      # Django 5.2 — версия с долгой поддержкой (LTS). На новую мажорную версию переходим
-      # осознанно и вручную, а не по предложению бота.
-      - dependency-name: "django"
-        update-types: ["version-update:semver-major"]
+      - dependency-name: "*"
 
   - package-ecosystem: docker
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
-    commit-message:
-      prefix: "deps"
+      interval: monthly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "*"
 
   - package-ecosystem: docker-compose
     directories: ["/", "/deploy"]
     schedule:
-      interval: weekly
-      day: monday
-    commit-message:
-      prefix: "deps"
+      interval: monthly
+    open-pull-requests-limit: 0
     ignore:
-      # Смена мажорной версии PostgreSQL требует миграции данных (pg_upgrade): старый том
-      # с данными новая версия не откроет. Меняем только вручную и с планом переезда.
-      - dependency-name: "postgres"
-        update-types: ["version-update:semver-major"]
+      - dependency-name: "*"
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: weekly
-      day: monday
-    commit-message:
-      prefix: "ci"
+      interval: monthly
+    open-pull-requests-limit: 0
+    ignore:
+      - dependency-name: "*"
