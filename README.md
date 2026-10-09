@@ -121,6 +121,7 @@ scripts/      smoke-тест Docker-образа, установка model-viewe
 e2e/          сценарии Playwright и стек для них (compose поверх боевого)
 deploy/       docker-compose.prod.yml и Caddyfile для сервера
 docs/         скриншоты для README
+CHANGELOG.md  история изменений
 .github/      CI/CD пайплайн
 ```
 
